@@ -38,12 +38,14 @@ def parseOptdigits(lines, w, h):
         line = line[:len(line)-1]
         if len(line) == w:
             # Pattern Line
+            for i in range(len(line)):
+                line[i] = int(line[i])
             pattern.append(line)
             hi = hi + 1
         elif hi == h:
             # End of Pattern and Target Line
-            #patternTarget = int(''.join(line))
-            patternTarget = ''.join(line)
+            patternTarget = int(''.join(line))
+            #patternTarget = ''.join(line)
             patSet.append({'p':pattern, 't':patternTarget})
             # print('Target:' + str(''.join(line)))
             # var = input("Cont?" + str(hi))
@@ -87,14 +89,18 @@ def parseSemeion(lines, w, h):
         line = line.split(' ')
         pattern = list(mygrouper(w, line[:len(line)-1]))
         patternTarget = pattern[h]
-        pattern = pattern[:h-1]
+        pattern = pattern[:h]
         if len(patternTarget) == 10:
+            for i in range(len(pattern)):
+                for j in range(len(pattern[i])):
+                    pattern[i][j] = int(pattern[i][j].split('.')[0])
             for i in range(len(patternTarget)):
                 patternTarget[i] = int(patternTarget[i])
             #print(patternTarget)
             patternTarget = list(itertools.compress([0,1,2,3,4,5,6,7,8,9], patternTarget))[0]
             #print(line)
-            #print(pattern)
+            #for i in range(len(pattern)):
+            #    print(''.join(str(x) for x in pattern[i]))
             #print(patternTarget)
             #var = input("cont")
             patSet.append({'p':pattern, 't':patternTarget})
@@ -107,21 +113,71 @@ def mygrouper(n, iterable):
     args = [iter(iterable)] * n
     return ([e for e in t if e != None] for t in itertools.zip_longest(*args))
 
+def buildCenters(patterns, w, h):
+    centersTargets = {}
+    for pattern in patterns:
+        if pattern['t'] not in centersTargets:
+            centersTargets[pattern['t']] = []
+        centersTargets[pattern['t']].append(pattern)
+    centers = {}
+    # build center as mean of all trained k patterns, and sigma as standard deviation
+    for k in centersTargets.keys():
+        kPats = centersTargets[k]
+        emptyPat = emptyPattern(w, h)
+        for pat in kPats:
+            #print(pat['p'])
+            if h > 1:
+                #print(str(len(pat['p'])) + " x " + str(len(pat['p'][0])))
+                for i in range(h):
+                    for j in range(w):
+                        emptyPat[i][j] = emptyPat[i][j] + pat['p'][i][j]
+            else:
+                for j in range(w):
+                    emptyPat[j] = emptyPat[j] + pat['p'][j]
+        if h > 1:
+            for i in range(h):
+                for j in range(w):
+                    emptyPat[i][j] = emptyPat[i][j] / len(kPats)
+        else:
+            for j in range(w):
+                emptyPat[j] = emptyPat[j] / len(kPats)
+        if h > 1:
+            for i in range(len(emptyPat)):
+                print(''.join(str(x+0.5).split('.')[0] for x in emptyPat[i]))
+        else:
+            print(', '.join(str(x).split('.')[0] for x in emptyPat))
+        print(k)
+        var = input("cont?")
+
+def emptyPattern(w, h):
+    pat = []
+    if h > 1:
+        for i in range(h):
+            pat.append([])
+            for j in range(w):
+                pat[i].append(0.0)
+    else:
+        for j in range(w):
+            pat.append(0.0)
+    return pat
+
 if __name__=="__main__":
-    #parseSet = optdigits
+    parseSet = optdigits
     #parseSet = letterRecognition
     #parseSet = pendigits
-    parseSet = semeion
+    #parseSet = semeion
     lines = []
     for fileName in parseSet['inFiles']:
         with open(fileName) as file:
             fileLines = file.readlines()
             for line in fileLines:
                 lines.append(line)
-    #patternSet = parseOptdigits(lines, parseSet['width'], parseSet['height'])
+    patternSet = parseOptdigits(lines, parseSet['width'], parseSet['height'])
     #patternSet = parseLetterRecognition(lines)
     #patternSet = parsePendigits(lines)
-    patternSet = parseSemeion(lines, parseSet['width'], parseSet['height'])
+    #patternSet = parseSemeion(lines, parseSet['width'], parseSet['height'])
+    
+    buildCenters(patternSet, parseSet['width'], parseSet['height'])
     print("pats: " + str(len(patternSet)))
     with open(parseSet['outFile'], 'w+') as outfile:
         data = {'count':len(patternSet),
