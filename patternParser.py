@@ -1,6 +1,7 @@
 #!/usr/bin/python
 
 import json
+import itertools
 
 optdigits = {'inFiles':['data/optdigits/optdigits-orig.tra',
                         'data/optdigits/optdigits-orig.windep',
@@ -13,6 +14,18 @@ letterRecognition = {'inFiles':['data/letter/letter-recognition.data'],
              'outFile':'data/letter/letter-recognition.json',
              'width':16,
              'height':1}
+
+pendigits = {'inFiles':['data/pendigits/pendigits.tra',
+                        'data/pendigits/pendigits.tes'],
+             'outFile':'data/pendigits/pendigits.json',
+             'width':16,
+             'height':1}
+
+semeion = {'inFiles':['data/semeion/semeion.data'],
+             'outFile':'data/semeion/semeion.json',
+             'width':16,
+             'height':16}
+
 
 def parseOptdigits(lines, w, h):
     patSet = []
@@ -49,13 +62,56 @@ def parseLetterRecognition(lines):
         line = line.split('\n')[0]
         line = line.split(',')
         pattern = line[1:]
+        for i in range(len(pattern)):
+            pattern[i] = int(pattern[i])
         patternTarget = line[0]
         patSet.append({'p':pattern, 't':patternTarget})
     return patSet
 
+def parsePendigits(lines):
+    patSet = []
+    for line in lines:
+        line = line.split('\n')[0]
+        line = line.split(',')
+        pattern = line[:len(line)-1]
+        for i in range(len(pattern)):
+            pattern[i] = int(pattern[i])
+        patternTarget = int(line[len(line)-1])
+        patSet.append({'p':pattern, 't':patternTarget})
+    return patSet
+
+def parseSemeion(lines, w, h):
+    patSet = []
+    for line in lines:
+        line = line.split('\n')[0]
+        line = line.split(' ')
+        pattern = list(mygrouper(w, line[:len(line)-1]))
+        patternTarget = pattern[h]
+        pattern = pattern[:h-1]
+        if len(patternTarget) == 10:
+            for i in range(len(patternTarget)):
+                patternTarget[i] = int(patternTarget[i])
+            #print(patternTarget)
+            patternTarget = list(itertools.compress([0,1,2,3,4,5,6,7,8,9], patternTarget))[0]
+            #print(line)
+            #print(pattern)
+            #print(patternTarget)
+            #var = input("cont")
+            patSet.append({'p':pattern, 't':patternTarget})
+        else:
+            var = input("Bad line [" + line + "]")
+    return patSet
+
+def mygrouper(n, iterable):
+    "http://stackoverflow.com/questions/1624883/alternative-way-to-split-a-list-into-groups-of-n"
+    args = [iter(iterable)] * n
+    return ([e for e in t if e != None] for t in itertools.zip_longest(*args))
+
 if __name__=="__main__":
     #parseSet = optdigits
-    parseSet = letterRecognition
+    #parseSet = letterRecognition
+    #parseSet = pendigits
+    parseSet = semeion
     lines = []
     for fileName in parseSet['inFiles']:
         with open(fileName) as file:
@@ -63,7 +119,9 @@ if __name__=="__main__":
             for line in fileLines:
                 lines.append(line)
     #patternSet = parseOptdigits(lines, parseSet['width'], parseSet['height'])
-    patternSet = parseLetterRecognition(lines)
+    #patternSet = parseLetterRecognition(lines)
+    #patternSet = parsePendigits(lines)
+    patternSet = parseSemeion(lines, parseSet['width'], parseSet['height'])
     print("pats: " + str(len(patternSet)))
     with open(parseSet['outFile'], 'w+') as outfile:
         data = {'count':len(patternSet),
