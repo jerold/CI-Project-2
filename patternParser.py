@@ -46,7 +46,7 @@ def parseOptdigits(lines, w, h):
         pattern = pattern[:h]
         for i in range(len(pattern)):
             for j in range(len(pattern[i])):
-                pattern[i][j] = float(pattern[i][j])/16.0
+                pattern[i][j] = int(pattern[i][j])
         patSet.append({'p':pattern, 't':patternTarget})
     return patSet
 
