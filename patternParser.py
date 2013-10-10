@@ -3,6 +3,9 @@
 import json
 import itertools
 
+import math
+import random
+
 optdigits = {'inFiles':['data/optdigits/optdigits-orig.tra',
                         'data/optdigits/optdigits-orig.windep',
                         'data/optdigits/optdigits-orig.wdep'],
@@ -48,7 +51,7 @@ def parseOptdigits(lines, w, h):
             #patternTarget = ''.join(line)
             patSet.append({'p':pattern, 't':patternTarget})
             # print('Target:' + str(''.join(line)))
-            # var = input("Cont?" + str(hi))
+            # var = raw_input("Cont?" + str(hi))
             pattern = []
             hi = 0
         else:
@@ -102,16 +105,77 @@ def parseSemeion(lines, w, h):
             #for i in range(len(pattern)):
             #    print(''.join(str(x) for x in pattern[i]))
             #print(patternTarget)
-            #var = input("cont")
+            #var = raw_input("cont")
             patSet.append({'p':pattern, 't':patternTarget})
         else:
-            var = input("Bad line [" + line + "]")
+            var = raw_input("Bad line [" + line + "]")
     return patSet
 
 def mygrouper(n, iterable):
     "http://stackoverflow.com/questions/1624883/alternative-way-to-split-a-list-into-groups-of-n"
     args = [iter(iterable)] * n
     return ([e for e in t if e != None] for t in itertools.zip_longest(*args))
+
+def buildKMeansCenters(patterns, w, h, k):
+    centers = {}
+    for i in range(k):
+        centers[i] = emptyPattern(w, h)
+        if h > 1:
+            centers[i][random.randint(0,h-1)][random.randint(0,w-1)] = 1
+        else:
+            centers[i][random.randint(w)] = 1
+    dist = 100
+    while dist > 3:
+        tempCenters = adjustCenters(patterns, centers)
+        dist = 0
+        for i in range(k):
+            dist = dist + euclidianDistance(centers[i], tempCenters[i])
+        centers = tempCenters
+        print(dist)
+    for i in range(k):
+        if h > 1:
+            for j in range(len(centers[i])):
+                print(''.join(str(x+0.5).split('.')[0] for x in centers[i][j]))
+        else:
+            print(', '.join(str(x).split('.')[0] for x in centers[i]))
+        print(k)
+        var = raw_input("cont?")
+
+def adjustCenters(patterns, centers):
+    groups = {}
+    for i in range(len(centers)):
+        groups[i] = []
+    for pattern in patterns:
+        bestDist = 99999
+        bestPat = 0
+        pat = 0
+        for key in centers.keys():
+            center = centers[key]
+            dist = euclidianDistance(pattern['p'], center)
+            if dist < bestDist:
+                bestDist = dist
+                bestPat = pat
+            pat = pat + 1
+        groups[bestPat].append(pattern)
+    newCenters = {}
+    for i in range(len(centers)):
+        if len(groups[i]) > 0:
+            newCenters[i] = buildMeanPattern(groups[i])
+        else:
+            newCenters[i] = centers[i]
+    return newCenters
+
+def euclidianDistance(p, q):
+    sumOfSquares = 0.0
+    if isinstance(p[0], list):
+        for i in range(len(p)):
+            for j in range(len(p[i])):
+                sumOfSquares = sumOfSquares + ((p[i][j]-q[i][j])*(p[i][j]-q[i][j]))
+    else:
+        for i in range(len(p)):
+                sumOfSquares = sumOfSquares + ((p[i][j]-q[i][j])*(p[i][j]-q[i][j]))
+    return math.sqrt(sumOfSquares)
+
 
 def buildCenters(patterns, w, h):
     centersTargets = {}
@@ -123,31 +187,41 @@ def buildCenters(patterns, w, h):
     # build center as mean of all trained k patterns, and sigma as standard deviation
     for k in centersTargets.keys():
         kPats = centersTargets[k]
-        emptyPat = emptyPattern(w, h)
-        for pat in kPats:
-            #print(pat['p'])
-            if h > 1:
-                #print(str(len(pat['p'])) + " x " + str(len(pat['p'][0])))
-                for i in range(h):
-                    for j in range(w):
-                        emptyPat[i][j] = emptyPat[i][j] + pat['p'][i][j]
-            else:
-                for j in range(w):
-                    emptyPat[j] = emptyPat[j] + pat['p'][j]
+        meanPattern = buildMeanPattern(kPats)
+
+def buildMeanPattern(patterns):
+    h = 0
+    w = len(patterns[0]['p'])
+    if isinstance(patterns[0]['p'][0], list):
+        h = len(patterns[0]['p'])
+        w = len(patterns[0]['p'][0])
+    mPat = emptyPattern(w, h)
+    for pat in patterns:
+        #print(pat['p'])
         if h > 1:
+            #print(str(len(pat['p'])) + " x " + str(len(pat['p'][0])))
             for i in range(h):
                 for j in range(w):
-                    emptyPat[i][j] = emptyPat[i][j] / len(kPats)
+                    mPat[i][j] = mPat[i][j] + pat['p'][i][j]
         else:
             for j in range(w):
-                emptyPat[j] = emptyPat[j] / len(kPats)
-        if h > 1:
-            for i in range(len(emptyPat)):
-                print(''.join(str(x+0.5).split('.')[0] for x in emptyPat[i]))
-        else:
-            print(', '.join(str(x).split('.')[0] for x in emptyPat))
-        print(k)
-        var = input("cont?")
+                print(mPat[j])
+                print(pat['p'][j])
+                mPat[j] = mPat[j] + pat['p'][j]
+    if h > 1:
+        for i in range(h):
+            for j in range(w):
+                mPat[i][j] = mPat[i][j] / len(patterns)
+    else:
+        for j in range(w):
+            mPat[j] = mPat[j] / len(patterns)
+    # if h > 1:
+    #     for i in range(len(mPat)):
+    #         print(''.join(str(x+0.5).split('.')[0] for x in mPat[i]))
+    # else:
+    #     print(', '.join(str(x).split('.')[0] for x in mPat))
+    # var = raw_input("cont?")
+    return mPat
 
 def emptyPattern(w, h):
     pat = []
@@ -177,7 +251,8 @@ if __name__=="__main__":
     #patternSet = parsePendigits(lines)
     #patternSet = parseSemeion(lines, parseSet['width'], parseSet['height'])
     
-    buildCenters(patternSet, parseSet['width'], parseSet['height'])
+    buildKMeansCenters(patternSet, parseSet['width'], parseSet['height'], 10)
+    #buildCenters(patternSet, parseSet['width'], parseSet['height'])
     print("pats: " + str(len(patternSet)))
     with open(parseSet['outFile'], 'w+') as outfile:
         data = {'count':len(patternSet),
