@@ -167,7 +167,7 @@ class PatternSet:
             if maxValue < outputs[i]:
                 maxIndex = i
                 maxValue = outputs[i]
-        print("Key: " + str(key) + " winner:" + str(maxIndex))
+        # print("Key: " + str(key) + " winner:" + str(maxIndex))
         self.confusionMatrix[str(key)][maxIndex] = self.confusionMatrix[str(key)][maxIndex] + 1
 
     def inputMagnitude(self):
@@ -206,10 +206,10 @@ class Net:
                 self.layers[NetLayerType.Output].adjustWeights(self.patternSet.targetVector(patterns[i]['t']))
             else:
                 self.patternSet.updateConfusionMatrix(patterns[i]['t'], self.layers[NetLayerType.Output].getOutputs())
-                print("Output:")
-                printPatterns(self.layers[NetLayerType.Output].getOutputs())
-                print("Target:")
-                printPatterns(self.patternSet.targetVector(patterns[i]['t']))
+                # print("Output:")
+                # printPatterns(self.layers[NetLayerType.Output].getOutputs())
+                # print("Target:")
+                # printPatterns(self.patternSet.targetVector(patterns[i]['t']))
             # Each pattern produces an error which is added to the total error for the set
             # and used later in the Absolute Error Calculation
             outError = outputError(self.layers[NetLayerType.Output].getOutputs(), self.patternSet.targetVector(patterns[i]['t']))
@@ -376,15 +376,15 @@ class Neuron:
 
 #Main
 if __name__=="__main__":
-    #p = PatternSet('data/optdigits/optdigits-orig.json')
-    p = PatternSet('data/letter/letter-recognition.json')
-    #p = PatternSet('data/pendigits/pendigits.json')
-    #p = PatternSet('data/semeion/semeion.json')
-    #p = PatternSet('data/optdigits/optdigits.json')
+    #p = PatternSet('data/optdigits/optdigits-orig.json')   # 32x32
+    p = PatternSet('data/letter/letter-recognition.json')  # 1x16 # Try 1 center per attribute, and allow outputs to combine them
+    #p = PatternSet('data/pendigits/pendigits.json')        # 1x16 # same as above
+    #p = PatternSet('data/semeion/semeion.json')            # 16x16 # Training set is very limited
+    #p = PatternSet('data/optdigits/optdigits.json')        # 8x8
     #for e in range(1, 20):
     n = Net(p)
-    n.run(PatternType.Train, 0, 15000)
-    n.run(PatternType.Test, 15001, 19999)
+    n.run(PatternType.Train, 0, 18000)
+    n.run(PatternType.Test, 18001, 20000)
 
     p.printConfusionMatrix()
     print("Done")
