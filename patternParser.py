@@ -155,6 +155,7 @@ def buildKMeansCenters(patterns, w, h, k):
     for i in range(k):
         printPattern(centers[i])
         print(i)
+    return centers
 
 def adjustCenters(patterns, centers):
     groups = {}
@@ -207,18 +208,24 @@ def buildCenters(patterns, w, h):
         printPattern(centers[k])
         print(k)
 
+    # refine centers using k-means
     dist = 100
-    while dist > 1:
+    distDelta = 100
+    oldDist = 0
+    while abs(distDelta) > 0.01:
         tempCenters = adjustCenters(patterns, centers)
         dist = 0
         for k in centersTargets.keys():
             dist = dist + euclidianDistance(centers[k], tempCenters[k])
         centers = tempCenters
-        print(dist)
+        distDelta = dist - oldDist
+        oldDist = dist
+        print("dist:" + str(dist) + ", delta:" + str(distDelta))
 
     for k in centersTargets.keys():
         printPattern(centers[k])
         print(k)
+    return centers
 
 def buildMeanPattern(patterns):
     h = 0
@@ -262,37 +269,43 @@ def printPattern(pattern):
     tolerance = 0.7
     if isinstance(pattern[0], list):
         for i in range(len(pattern)):
-            print(''.join(str(x+tolerance).split('.')[0] for x in pattern[i]))
+            print(', '.join(str(x+tolerance).split('.')[0] for x in pattern[i]))
     else:
         print(', '.join(str(x).split('.')[0] for x in pattern))
 
+def buildTargetOutputVector(centers):
+    for key in centers.keys():
+        print("[" + str(key) + "]")
 
 if __name__=="__main__":
-    parseSet = optdigits
+    #parseSet = optdigits
     #parseSet = optdigitsOrig
     #parseSet = letterRecognition
     #parseSet = pendigits
-    #parseSet = semeion
+    parseSet = semeion
     lines = []
     for fileName in parseSet['inFiles']:
         with open(fileName) as file:
             fileLines = file.readlines()
             for line in fileLines:
                 lines.append(line)
-    patternSet = parseOptdigits(lines, parseSet['width'], parseSet['height'])
+    #patternSet = parseOptdigits(lines, parseSet['width'], parseSet['height'])
     #patternSet = parseOptdigitsOrig(lines, parseSet['width'], parseSet['height'])
     #patternSet = parseLetterRecognition(lines)
     #patternSet = parsePendigits(lines)
-    #patternSet = parseSemeion(lines, parseSet['width'], parseSet['height'])
+    patternSet = parseSemeion(lines, parseSet['width'], parseSet['height'])
+    
+    # buildKMeansCenters(patternSet, parseSet['width'], parseSet['height'], 20)
+    centers = buildCenters(patternSet, parseSet['width'], parseSet['height'])
+    outputVector = buildTargetOutputVector(centers)
     
     print("pats: " + str(len(patternSet)))
     with open(parseSet['outFile'], 'w+') as outfile:
         data = {'count':len(patternSet),
                 'width':parseSet['width'],
                 'height':parseSet['height'],
-                'patterns':patternSet}
+                'patterns':patternSet,
+                'centers':centers}
         json.dump(data, outfile)
 
-    # buildKMeansCenters(patternSet, parseSet['width'], parseSet['height'], 20)
-    buildCenters(patternSet, parseSet['width'], parseSet['height'])
 
