@@ -377,14 +377,20 @@ class Neuron:
 #Main
 if __name__=="__main__":
     #p = PatternSet('data/optdigits/optdigits-orig.json')   # 32x32
-    p = PatternSet('data/letter/letter-recognition.json')  # 1x16 # Try 1 center per attribute, and allow outputs to combine them
+    #p = PatternSet('data/letter/letter-recognition.json')  # 1x16 # Try 1 center per attribute, and allow outputs to combine them
     #p = PatternSet('data/pendigits/pendigits.json')        # 1x16 # same as above
-    #p = PatternSet('data/semeion/semeion.json')            # 16x16 # Training set is very limited
+    p = PatternSet('data/semeion/semeion.json')            # 16x16 # Training set is very limited
     #p = PatternSet('data/optdigits/optdigits.json')        # 8x8
     #for e in range(1, 20):
     n = Net(p)
-    n.run(PatternType.Train, 0, 18000)
-    n.run(PatternType.Test, 18001, 20000)
+    n.run(PatternType.Train, 0, 1400)
+    n.run(PatternType.Train, 0, 1400)
+    n.run(PatternType.Train, 0, 1400)
+    n.run(PatternType.Train, 0, 1400)
+    n.run(PatternType.Train, 0, 1400)
+    n.run(PatternType.Train, 0, 1400)
+    n.run(PatternType.Train, 0, 1400)
+    n.run(PatternType.Test, 1401, 1593)
 
     p.printConfusionMatrix()
     print("Done")

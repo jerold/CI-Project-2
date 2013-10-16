@@ -134,7 +134,7 @@ def parseSemeion(lines, w, h):
 def mygrouper(n, iterable):
     "http://stackoverflow.com/questions/1624883/alternative-way-to-split-a-list-into-groups-of-n"
     args = [iter(iterable)] * n
-    return ([e for e in t if e != None] for t in itertools.zip_longest(*args))
+    return ([e for e in t if e != None] for t in itertools.izip_longest(*args))
 
 def buildKMeansCenters(patterns, w, h, k):
     centers = {}
@@ -191,28 +191,36 @@ def euclidianDistance(p, q):
     return math.sqrt(sumOfSquares)
 
 
-def buildCenters(patterns, w, h):
+def buildCentersAndSigmas(patterns):
     centersTargets = {}
     for pattern in patterns:
         if pattern['t'] not in centersTargets:
             centersTargets[pattern['t']] = []
         centersTargets[pattern['t']].append(pattern)
     centers = {}
+    sigmas = {}
     print("Found " + str(len(centersTargets)) + " targets.")
     # build center as mean of all trained k patterns, and sigma as standard deviation
     for k in centersTargets.keys():
         kPats = centersTargets[k]
-        meanPattern = buildMeanPattern(kPats)
-        centers[k] = meanPattern
+        centers[k] = buildMeanPattern(kPats)
+
+    print("Centers Post Average:")
     for k in centersTargets.keys():
-        printPattern(centers[k])
         print(k)
+        printPattern(centers[k])
+
+    # Build Sigmas for each space
+    print("Sigma:")
+    for k in centersTargets.keys():
+        sigmas[k] = buildSigmaPattern(centers[k], kPats)
+        printPattern(sigmas[k])
 
     # refine centers using k-means
     dist = 100
     distDelta = 100
     oldDist = 0
-    while abs(distDelta) > 0.01:
+    while dist > 1 and abs(distDelta) > 0.01:
         tempCenters = adjustCenters(patterns, centers)
         dist = 0
         for k in centersTargets.keys():
@@ -222,10 +230,12 @@ def buildCenters(patterns, w, h):
         oldDist = dist
         print("dist:" + str(dist) + ", delta:" + str(distDelta))
 
+    print("Centers Post K-means:")
     for k in centersTargets.keys():
-        printPattern(centers[k])
         print(k)
-    return centers
+        printPattern(centers[k])
+
+    return {'centers':centers, 'sigmas':sigmas}
 
 def buildMeanPattern(patterns):
     h = 0
@@ -253,6 +263,29 @@ def buildMeanPattern(patterns):
             mPat[j] = mPat[j] / len(patterns)
     return mPat
 
+def buildSigmaPattern(meanPat, patterns):
+    h = 0
+    w = len(patterns[0]['p'])
+    if isinstance(patterns[0]['p'][0], list):
+        h = len(patterns[0]['p'])
+        w = len(patterns[0]['p'][0])
+    sPat = emptyPattern(w, h)
+    # Sum over all square of distance from means
+    if h > 1:
+        for i in range(h):
+            for j in range(w):
+                for pat in patterns:
+                    sPat[i][j] = sPat[i][j] + (pat['p'][i][j] - meanPat[i][j])*(pat['p'][i][j] - meanPat[i][j])
+                sPat[i][j] = math.sqrt(1.0/len(patterns)*sPat[i][j])
+    else:
+        for j in range(w):
+            for pat in patterns:
+                sPat[j] = sPat[j] + (pat['p'][j] - meanPat[j])*(pat['p'][j] - meanPat[j])
+            sPat[j] = math.sqrt(1.0/len(patterns)*sPat[j])
+    return sPat
+        
+
+
 def emptyPattern(w, h):
     pat = []
     if h > 1:
@@ -269,20 +302,17 @@ def printPattern(pattern):
     tolerance = 0.7
     if isinstance(pattern[0], list):
         for i in range(len(pattern)):
-            print(', '.join(str(x+tolerance).split('.')[0] for x in pattern[i]))
+            print(', '.join(str(round(x+tolerance,3)) for x in pattern[i]))
     else:
-        print(', '.join(str(x).split('.')[0] for x in pattern))
+        print(', '.join(str(round(x,3)) for x in pattern))
 
-def buildTargetOutputVector(centers):
-    for key in centers.keys():
-        print("[" + str(key) + "]")
 
 if __name__=="__main__":
     #parseSet = optdigits
     #parseSet = optdigitsOrig
     #parseSet = letterRecognition
-    #parseSet = pendigits
-    parseSet = semeion
+    parseSet = pendigits
+    #parseSet = semeion
     lines = []
     for fileName in parseSet['inFiles']:
         with open(fileName) as file:
@@ -292,12 +322,13 @@ if __name__=="__main__":
     #patternSet = parseOptdigits(lines, parseSet['width'], parseSet['height'])
     #patternSet = parseOptdigitsOrig(lines, parseSet['width'], parseSet['height'])
     #patternSet = parseLetterRecognition(lines)
-    #patternSet = parsePendigits(lines)
-    patternSet = parseSemeion(lines, parseSet['width'], parseSet['height'])
+    patternSet = parsePendigits(lines)
+    #patternSet = parseSemeion(lines, parseSet['width'], parseSet['height'])
     
     # buildKMeansCenters(patternSet, parseSet['width'], parseSet['height'], 20)
-    centers = buildCenters(patternSet, parseSet['width'], parseSet['height'])
-    outputVector = buildTargetOutputVector(centers)
+    centerSigmas = buildCentersAndSigmas(patternSet)
+    centers = centerSigmas['centers']
+    sigmas = centerSigmas['sigmas']
     
     print("pats: " + str(len(patternSet)))
     with open(parseSet['outFile'], 'w+') as outfile:
@@ -305,7 +336,8 @@ if __name__=="__main__":
                 'width':parseSet['width'],
                 'height':parseSet['height'],
                 'patterns':patternSet,
-                'centers':centers}
+                'centers':centers,
+                'sigmas':sigmas}
         json.dump(data, outfile)
 
 
