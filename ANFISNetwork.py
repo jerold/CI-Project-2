@@ -80,6 +80,51 @@ def vectorizeMatrix(p):
     else:
         return p
 
+# values will be a vector, we find k centers among them
+def kMeans(values, k):
+    print("Attribute Values")
+    printPatterns(values)
+    centers = random.sample(values, k)
+    memberships = []
+    movement = 100.0
+    while abs(movement) > 0.0:
+        movement = 0.0
+        memberships = []
+        for k, v in enumerate(centers):
+            memberships.append([])
+        # establish each value's membership to one of the k centers
+        for i, v in enumerate(values):
+            bestDist = 99999
+            bestCenter = 0
+            for j, c in enumerate(centers):
+                dist = euclidianDistance(v, c)
+                if dist < bestDist:
+                    bestDist = dist
+                    bestCenter = j
+            memberships[bestCenter].append(i)
+        # avg centers' members for new center location
+        for i, center in enumerate(centers):
+            if len(memberships[i]) > 0:
+                newCenter = 0.0
+                for j, v in enumerate(memberships[i]):
+                    newCenter = newCenter + values[v]
+                newCenter = newCenter/len(memberships[i])
+                movement = movement + (center - newCenter)
+                centers[i] = newCenter
+    # Construct Sigma for the rules
+    sigmas = []
+    for i, center in enumerate(centers):
+        sigmas.append(0.0)
+        for j, v in enumerate(memberships[i]):
+            sigmas[i] = sigmas[i] + (values[v]-center)*(values[v]-center)
+        sigmas[i] = math.sqrt(1.0/len(memberships[i])*sigmas[i])
+        print("C[" + str(center) + "] S[" + str(sigmas[i]) + "]")
+        printPatterns(memberships[i])
+    return {'centers':centers,
+            'members':memberships,
+            'sigmas':sigmas}
+            
+
 # Time saver right here
 def clearLogs():
     with open('errors.txt', 'w') as file:
@@ -265,9 +310,31 @@ class Net:
         #sort training patterns by unique targets
         print(type(self.patternSet.centers))
         keys = list(self.patternSet.centers.keys())
+        keys.sort()
+        # columns in the patterns represent attributes, build attribute array
+        attributes = []
+        for i in range(len(self.patternSet.centers[keys[0]])):
+            attributes.append([])
         for key in keys:
-            pat = self.patternSet.centers[key]
-            printPatterns(pat)
+            pattern = self.patternSet.centers[key]
+            for i, attribute in enumerate(pattern):
+                attributes[i].append(attribute)
+        # Now we build a center for each attribute
+        for k, v in enumerate(attributes):
+            centerCount = 1
+            centers = kMeans(v, centerCount)
+            print("\n")
+            while 0.0 not in centers['sigmas']:
+                centerCount = centerCount + 1
+                centers = kMeans(v, centerCount)
+                print("\n")
+            centerCount = centerCount - 1
+            centers = kMeans(v, centerCount)
+            print("\n")
+            print(centers)
+            raise("Die Here")
+            
+                
         #for each input (only on sets where each input is a parameter (not matrix!)
             #for each target set of centers TSOC
                 #avg value for TSOC's attribute, make center, calc sigma
@@ -276,7 +343,6 @@ class Net:
             #remaining centers are rules for this attribute
         #return rules
         raise("Balls")
-            
 
     # Logging
     def recordWeights(self):
