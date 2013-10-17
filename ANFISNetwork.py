@@ -327,7 +327,7 @@ class Net:
             centerCount = 1
             attributeCenters = kMeans(v, centerCount)
             print("\n")
-            while 0.0 not in centers['sigmas']:
+            while 0.0 not in attributeCenters['sigmas']:
                 centerCount = centerCount + 1
                 attributeCenters = kMeans(v, centerCount)
                 print("\n")
@@ -338,8 +338,8 @@ class Net:
             centers.append(attributeCenters)
             #raise("Die Here")
 
-        # build the rulesets filling them out with rules coorisponding to the centers assembled above
-        # link up the product nodes to their coorisponding rulesets' rules
+        # build the rulesets filling them out with rules corresponding to the centers assembled above
+        # link up the product nodes to their corresponding rulesets' rules
         ruleLayer = self.layers[NetLayerType.Rules]
         prodLayer = self.layers[NetLayerType.ProdNorm]
         for i, attribute in enumerate(attributes):
@@ -351,8 +351,6 @@ class Net:
                 newRuleSet.rules.append(neuron)
                 for m, member in centers[i]['members']:
                     prodLayer.neurons[member].inputVector.append(j)
-
-
             ruleLayer.ruleSets.append(RuleSet(ruleLayer))
 
             
