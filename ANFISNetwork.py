@@ -236,6 +236,8 @@ class Net:
         ruleLayer = Layer(NetLayerType.Rules, inputLayer, patternSet.inputMagnitude())
         prodNormLayer = Layer(NetLayerType.ProdNorm, ruleLayer, patternSet.outputMagnitude())
         consequentLayer = Layer(NetLayerType.Consequent, prodNormLayer, patternSet.outputMagnitude())
+        consequentLayer.consequences = [randomInitialWeight()] * patternSet.inputMagnitude() + [randomInitialWeight()]
+        consequentLayer.consequences = consequentLayer.consequences * len(prodNormLayer.neurons)
         summationLayer = Layer(NetLayerType.Output, consequentLayer, patternSet.outputMagnitude())
         self.layers = [inputLayer, ruleLayer, prodNormLayer, consequentLayer, summationLayer]
         self.patternSet = patternSet
@@ -261,9 +263,9 @@ class Net:
             self.layers[NetLayerType.Input].feedForward()
             if mode == PatternType.Train:
                 #For training the final output weights are adjusted to correct for error from target
-                self.layers[NetLayerType.Output].adjustWeights(self.patternSet.targetVector(patterns[i]['t']))
+                self.layers[NetLayerType.Consequent].adjustWeights(self.patternSet.targetVector(patterns[i]['t']))
             else:
-                self.patternSet.updateConfusionMatrix(patterns[i]['t'], self.layers[NetLayerType.Output].getOutputs())
+                self.patternSet.updateConfusionMatrix(patterns[i]['t'], self.layers[NetLayerType.Consequent].getOutputs())
                 # print("Output:")
                 # printPatterns(self.layers[NetLayerType.Output].getOutputs())
                 # print("Target:")
@@ -320,19 +322,39 @@ class Net:
             for i, attribute in enumerate(pattern):
                 attributes[i].append(attribute)
         # Now we build a center for each attribute
+        centers = []
         for k, v in enumerate(attributes):
             centerCount = 1
-            centers = kMeans(v, centerCount)
+            attributeCenters = kMeans(v, centerCount)
             print("\n")
             while 0.0 not in centers['sigmas']:
                 centerCount = centerCount + 1
-                centers = kMeans(v, centerCount)
+                attributeCenters = kMeans(v, centerCount)
                 print("\n")
             centerCount = centerCount - 1
-            centers = kMeans(v, centerCount)
+            attributeCenters = kMeans(v, centerCount)
             print("\n")
-            print(centers)
-            raise("Die Here")
+            print(attributeCenters)
+            centers.append(attributeCenters)
+            #raise("Die Here")
+
+        # build the rulesets filling them out with rules coorisponding to the centers assembled above
+        # link up the product nodes to their coorisponding rulesets' rules
+        ruleLayer = self.layers[NetLayerType.Rules]
+        prodLayer = self.layers[NetLayerType.ProdNorm]
+        for i, attribute in enumerate(attributes):
+            newRuleSet = RuleSet(ruleLayer)
+            for j, center in enumerate(centers[i]['centers']):
+                neuron = Neuron(ruleLayer)
+                neuron.center = center
+                neuron.sigma = centers[i]['sigmas'][j]
+                newRuleSet.rules.append(neuron)
+                for m, member in centers[i]['members']:
+                    prodLayer.neurons[member].inputVector.append(j)
+
+
+            ruleLayer.ruleSets.append(RuleSet(ruleLayer))
+
             
                 
         #for each input (only on sets where each input is a parameter (not matrix!)
@@ -393,8 +415,10 @@ class Layer:
     # the product layer will request specific rule outputs from the ruleset layer
     def getOutputs(self, inputVector):
         outputs = []
-        for rIndex, rule in enumerate(self.ruleSets):
-            outputs.append(rule[inputVector[rIndex]])
+        for rIndex, ruleSet in enumerate(self.ruleSets):
+            if len(ruleSet.rules) != len(inputVector):
+                raise NameError('Input dimension of network does not match that of pattern!')
+            outputs.append(ruleSet.rules[inputVector[rIndex]])
         return outputs
 
     # Adjusting weights is done on the output layer in order to scale the
@@ -413,6 +437,17 @@ class Layer:
                 if neuron.weights[j] > 9999999:
                     raise NameError('Divergent Weights!')
 
+    def adjustConsequent(self, targets):
+        if len(targets) != len(self.neurons):
+            raise NameError('Output dimension of network does not match that of target!')
+        for i, neuron in enumerate(self.neurons):
+            error = abs(targets[i] - neuron.output)
+            while error > 0.05:
+                for j, consequent in enumerate(self.consequences):
+                    self.consequences[j] = consequent + (eta * (targets[i] - neuron.output) * consequent)
+                self.feedForward()
+                error = abs(targets[i] - neuron.output)
+
     # Each Layer has a link to the next link in order.  Input values are translated from
     # input to output in keeping with the Layer's function
     def feedForward(self):
@@ -421,8 +456,6 @@ class Layer:
             for neuron in self.neurons:
                 neuron.output = neuron.input
             self.next.feedForward()
-
-
         elif self.layerType == NetLayerType.Rules:
             prevOutputs = self.prev.getOutputs()
             for rsIndex, ruleSet in enumerate(self.ruleSets):
@@ -444,7 +477,13 @@ class Layer:
                 neuron.output = neuron.input/rollingSum
             self.next.feedForward()
         elif self.layerType == NetLayerType.Consequent:
-            raise("Balls")
+            prevOutputs = self.prev.getOutputs()
+            for i, neuron in enumerate(self.neurons):
+                sum = 0
+                for j, val in enumerate(prevOutputs):
+                    sum += val*self.consequences[i][j]
+                sum += self.consequences[-1]
+                neuron.output = sum
         elif self.layerType == NetLayerType.Summation:
             raise("Balls")
         elif self.layerType == NetLayerType.Output:
@@ -480,7 +519,13 @@ class Layer:
 
 class RuleSet:
     def __init__(self, layer):
-        self.neurons = []
+        self.layer = layer
+        self.rules = []
+
+    def setInputs(self, iput):
+        for neuron in self.rules:
+            neuron.input = iput
+
 
 # Neuron contains inputs and outputs and depending on the type will use
 # weights or centers in calculating it's outputs.  Calculations are done
