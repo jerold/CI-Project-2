@@ -232,10 +232,16 @@ class Net:
         ruleLayer = Layer(NetLayerType.Rules, inputLayer, patternSet.inputMagnitude())
         prodNormLayer = Layer(NetLayerType.ProdNorm, ruleLayer, patternSet.outputMagnitude())
         consequentLayer = Layer(NetLayerType.Consequent, prodNormLayer, patternSet.outputMagnitude())
-        consequentLayer.consequences = [randomInitialWeight()] * patternSet.inputMagnitude() + [randomInitialWeight()]
-        consequentLayer.consequences = consequentLayer.consequences * len(prodNormLayer.neurons)
-        summationLayer = Layer(NetLayerType.Output, consequentLayer, patternSet.outputMagnitude())
-        self.layers = [inputLayer, ruleLayer, prodNormLayer, consequentLayer, summationLayer]
+
+        # Clark, I changed the initialization of this matrix, please check hera and around line 483 to see if I did it correctly
+        #consequentLayer.consequences = [randomInitialWeight()] * patternSet.inputMagnitude() + [randomInitialWeight()]
+        #consequentLayer.consequences = consequentLayer.consequences * len(prodNormLayer.neurons)
+        consequentLayer.consequences = [[randomInitialWeight() for _ in range(len(prodNormLayer.neurons))] for _ in range(patternSet.inputMagnitude() + 1)]
+        print("Consequence:")
+        printPatterns(consequentLayer.consequences)
+
+        #summationLayer = Layer(NetLayerType.Output, consequentLayer, patternSet.outputMagnitude())
+        self.layers = [inputLayer, ruleLayer, prodNormLayer, consequentLayer]
         self.patternSet = patternSet
         self.absError = 100
         if self.patternSet.inputMagY > 1:
@@ -268,7 +274,11 @@ class Net:
                 # printPatterns(self.patternSet.targetVector(patterns[i]['t']))
             # Each pattern produces an error which is added to the total error for the set
             # and used later in the Absolute Error Calculation
-            outError = outputError(self.layers[NetLayerType.Output].getOutputs(), self.patternSet.targetVector(patterns[i]['t']))
+            # print("Outputs")
+            # print(", ".join(str(round(x, 4)) for x in self.layers[NetLayerType.Consequent].getOutputs()))
+            # print("Target")
+            # print(self.patternSet.targetVector(patterns[i]['t']))
+            outError = outputError(self.layers[NetLayerType.Consequent].getOutputs(), self.patternSet.targetVector(patterns[i]['t']))
             errorSum = errorSum + outError
             eta = eta - eta/((endIndex - startIndex)*1.1)
             # if mode != PatternType.Train and logResults:
@@ -332,10 +342,10 @@ class Net:
             centers.append(attributeCenters)
         # Print Final Rules
         for a, attributeDetails in enumerate(centers):
+            print("\n")
             for c, center in enumerate(attributeDetails['centers']):
                 memString = ', '.join(str(round(x, 3)) for x in attributeDetails['members'][c])
                 print("C:" + str(a) + ":" + str(c) + "[" + str(round(center, 2)) + "{" + str(round(attributeDetails['sigmas'][c], 2)) + "}]  (" + memString + ")")
-            print("\n")
 
         # build the rulesets filling them out with rules corresponding to the centers assembled above
         # link up the product nodes to their corresponding rulesets' rules
@@ -404,7 +414,7 @@ class Layer:
     def getRuleLayerOutputs(self, inputVector):
         outputs = []
         for rIndex, ruleSet in enumerate(self.ruleSets):
-            print("IV:" + str(inputVector[rIndex]) + " RS:" + str(len(ruleSet.rules)))
+            #print("IV:" + str(inputVector[rIndex]) + " RS:" + str(len(ruleSet.rules)))
             if inputVector[rIndex] > len(ruleSet.rules):
                 raise NameError('Rule Index in InputVector does not match the number of Rules in this Ruleset!')
             outputs.append(ruleSet.rules[inputVector[rIndex]].output)
@@ -464,19 +474,17 @@ class Layer:
                     neuron.input = neuron.input*outputValue
                 rollingSum = rollingSum + neuron.input
             # Normalize output
-            print("Outputs")
             if abs(rollingSum) > 0.0:
                 for neuron in self.neurons:
                     neuron.output = neuron.input/rollingSum
-                    print(round(neuron.output, 3))
             self.next.feedForward()
         elif self.layerType == NetLayerType.Consequent:
             prevOutputs = self.prev.getOutputs()
             for i, neuron in enumerate(self.neurons):
                 consequenceSum = 0.0
                 for j, val in enumerate(prevOutputs):
-                    consequenceSum += val*self.consequences[i][j]
-                consequenceSum += self.consequences[-1]
+                    consequenceSum = consequenceSum + val*self.consequences[i][j]
+                consequenceSum = consequenceSum + self.consequences[i][len(self.consequences[i])-1]
                 neuron.output = consequenceSum
         elif self.layerType == NetLayerType.Summation:
             raise("Balls")
