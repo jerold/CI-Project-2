@@ -45,7 +45,10 @@ def randomInitialWeight():
 # RBF used in Hidden Layer output calculation
 def radialBasisFunction(norm, sigma):
     #Inverse Multiquadratic
-    return 1.0/math.sqrt(norm*norm + sigma*sigma)
+    if abs(sigma) > 0.0:
+        return 1.0/math.sqrt(norm*norm + sigma*sigma)
+    else:
+        return 1.0
 
 # used in calculating Sigma based on center locations
 def euclidianDistance(p, q):
@@ -111,11 +114,15 @@ def kMeans(values, k):
                 centers[i] = newCenter
     # Construct Sigma for the rules
     sigmas = []
+    print(values)
     for i, center in enumerate(centers):
+        print(center)
+        print(memberships[i])
         sigmas.append(0.0)
         for j, v in enumerate(memberships[i]):
             sigmas[i] = sigmas[i] + (values[v]-center)*(values[v]-center)
-        sigmas[i] = math.sqrt(1.0/len(memberships[i])*sigmas[i])
+        if abs(sigmas[i]) > 0.0:
+            sigmas[i] = math.sqrt(1.0/len(memberships[i])*sigmas[i])
     return {'centers':centers,
             'members':memberships,
             'sigmas':sigmas}
@@ -244,16 +251,21 @@ class Net:
         self.layers = [inputLayer, ruleLayer, prodNormLayer, consequentLayer]
         self.patternSet = patternSet
         self.absError = 100
-        if self.patternSet.inputMagY > 1:
-            self.buildCenters()
-        else:
-            self.buildRules()
+        self.buildRules()
+        # if self.patternSet.inputMagY > 1:
+        #     self.buildCenters()
+        # else:
+        #     self.buildRules()
 
     # Run is where the magic happens. Training Testing or Validation mode is indicated and
     # the coorisponding pattern set is loaded and ran through the network
     # At the end Error is calculated
     def run(self, mode, startIndex, endIndex):
         patterns = self.patternSet.patterns
+        if len(patterns) < endIndex:
+            print(len(patterns))
+            print(endIndex)
+            raise NameError('Yo dawg, where you think I is gunna get that many patterns?')
         eta = 1.0
         errorSum = 0.0
         print("Mode[" + PatternType.desc(mode) + ":" + str(endIndex - startIndex) + "]")
@@ -261,23 +273,28 @@ class Net:
         for i in range(startIndex, endIndex):
             #Initialize the input layer with input values from the pattern
             # Feed those values forward through the remaining layers, linked list style
+            if len(vectorizeMatrix(patterns[i]['p'])) != len(self.layers[NetLayerType.Input].neurons):
+                raise NameError('Input vector length does not match neuron count on input layer!')
             self.layers[NetLayerType.Input].setInputs(vectorizeMatrix(patterns[i]['p']))
             self.layers[NetLayerType.Input].feedForward()
             if mode == PatternType.Train:
                 #For training the final output weights are adjusted to correct for error from target
                 self.layers[NetLayerType.Consequent].adjustWeights(self.patternSet.targetVector(patterns[i]['t']))
             else:
-                self.patternSet.updateConfusionMatrix(patterns[i]['t'], self.layers[NetLayerType.Consequent].getOutputs())
+                #self.patternSet.updateConfusionMatrix(patterns[i]['t'], self.layers[NetLayerType.Consequent].getOutputs())
+                self.patternSet.updateConfusionMatrix(patterns[i]['t'], self.layers[NetLayerType.ProdNorm].getOutputs())
                 # print("Output:")
                 # printPatterns(self.layers[NetLayerType.Output].getOutputs())
                 # print("Target:")
                 # printPatterns(self.patternSet.targetVector(patterns[i]['t']))
             # Each pattern produces an error which is added to the total error for the set
             # and used later in the Absolute Error Calculation
-            # print("Outputs")
-            # print(", ".join(str(round(x, 4)) for x in self.layers[NetLayerType.Consequent].getOutputs()))
-            # print("Target")
-            # print(self.patternSet.targetVector(patterns[i]['t']))
+
+            print("\nOutputs")
+            print("[" + ", ".join(str(int(x+0.2)) for x in self.layers[NetLayerType.ProdNorm].getOutputs()) + "]")
+            print("Target")
+            print(self.patternSet.targetVector(patterns[i]['t']))
+
             outError = outputError(self.layers[NetLayerType.Consequent].getOutputs(), self.patternSet.targetVector(patterns[i]['t']))
             errorSum = errorSum + outError
             eta = eta - eta/((endIndex - startIndex)*1.1)
@@ -318,12 +335,13 @@ class Net:
         #sort training patterns by unique targets
         keys = list(self.patternSet.centers.keys())
         keys.sort()
-        # columns in the patterns represent attributes, build attribute array
+        # cells in the patterns represent attributes, build attribute array
         attributes = []
-        for i in range(len(self.patternSet.centers[keys[0]])):
+        patterns = vectorizeMatrix(self.patternSet.centers[keys[0]])
+        for i in range(len(patterns)):
             attributes.append([])
         for key in keys:
-            pattern = self.patternSet.centers[key]
+            pattern = vectorizeMatrix(self.patternSet.centers[key])
             for i, attribute in enumerate(pattern):
                 attributes[i].append(attribute)
         # Now we build a center for each attribute
@@ -478,14 +496,14 @@ class Layer:
                 for neuron in self.neurons:
                     neuron.output = neuron.input/rollingSum
             self.next.feedForward()
-        elif self.layerType == NetLayerType.Consequent:
-            prevOutputs = self.prev.getOutputs()
-            for i, neuron in enumerate(self.neurons):
-                consequenceSum = 0.0
-                for j, val in enumerate(prevOutputs):
-                    consequenceSum = consequenceSum + val*self.consequences[i][j]
-                consequenceSum = consequenceSum + self.consequences[i][len(self.consequences[i])-1]
-                neuron.output = consequenceSum
+        # elif self.layerType == NetLayerType.Consequent:
+            # prevOutputs = self.prev.getOutputs()
+            # for i, neuron in enumerate(self.neurons):
+            #     consequenceSum = 0.0
+            #     for j, val in enumerate(prevOutputs):
+            #         consequenceSum = consequenceSum + val*self.consequences[i][j]
+            #     consequenceSum = consequenceSum + self.consequences[i][len(self.consequences[i])-1]
+            #     neuron.output = consequenceSum
         elif self.layerType == NetLayerType.Summation:
             raise("Balls")
         elif self.layerType == NetLayerType.Output:
@@ -493,22 +511,22 @@ class Layer:
 
 
             
-        elif self.layerType == NetLayerType.Hidden:
-            # RBF on the Euclidian Norm of input to center
-            for neuron in self.neurons:
-                prevOutputs = self.prev.getOutputs()
-                if len(neuron.center) != len(prevOutputs):
-                    raise NameError('Center dimension does not match that of previous Layer outputs!')
-                neuron.input = euclidianDistance(prevOutputs, neuron.center);
-                neuron.output = radialBasisFunction(neuron.input, Neuron.sigma)
-            self.next.feedForward()
-        elif self.layerType == NetLayerType.Output:
-            # Linear Combination of Hidden layer outputs and associated weights
-            for neuron in self.neurons:
-                prevOutputs = self.prev.getOutputs()
-                if len(neuron.weights) != len(prevOutputs):
-                    raise NameError('Weights dimension does not match that of previous Layer outputs!')
-                neuron.output = linearCombination(prevOutputs, neuron.weights)
+        # elif self.layerType == NetLayerType.Hidden:
+        #     # RBF on the Euclidian Norm of input to center
+        #     for neuron in self.neurons:
+        #         prevOutputs = self.prev.getOutputs()
+        #         if len(neuron.center) != len(prevOutputs):
+        #             raise NameError('Center dimension does not match that of previous Layer outputs!')
+        #         neuron.input = euclidianDistance(prevOutputs, neuron.center);
+        #         neuron.output = radialBasisFunction(neuron.input, Neuron.sigma)
+        #     self.next.feedForward()
+        # elif self.layerType == NetLayerType.Output:
+        #     # Linear Combination of Hidden layer outputs and associated weights
+        #     for neuron in self.neurons:
+        #         prevOutputs = self.prev.getOutputs()
+        #         if len(neuron.weights) != len(prevOutputs):
+        #             raise NameError('Weights dimension does not match that of previous Layer outputs!')
+        #         neuron.output = linearCombination(prevOutputs, neuron.weights)
 
     # Output Format
     def __str__(self):
@@ -573,13 +591,13 @@ class Neuron:
 if __name__=="__main__":
     #p = PatternSet('data/optdigits/optdigits-orig.json')   # 32x32
     #p = PatternSet('data/letter/letter-recognition.json')  # 1x16 # Try 1 center per attribute, and allow outputs to combine them
-    p = PatternSet('data/pendigits/pendigits.json')        # 1x16 # same as above
-    #p = PatternSet('data/semeion/semeion.json')            # 16x16 # Training set is very limited
+    #p = PatternSet('data/pendigits/pendigits.json')        # 1x16 # same as above
+    p = PatternSet('data/semeion/semeion.json')            # 16x16 # Training set is very limited
     #p = PatternSet('data/optdigits/optdigits.json')        # 8x8
     #for e in range(1, 20):
     n = Net(p)
-    n.run(PatternType.Train, 0, 10000)
-    n.run(PatternType.Test, 10000, 10992)
+    n.run(PatternType.Train, 0, 1)
+    n.run(PatternType.Test, 1, 1593)
 
     p.printConfusionMatrix()
     print("Done")
