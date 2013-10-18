@@ -252,10 +252,6 @@ class Net:
         self.patternSet = patternSet
         self.absError = 100
         self.buildRules()
-        # if self.patternSet.inputMagY > 1:
-        #     self.buildCenters()
-        # else:
-        #     self.buildRules()
 
     # Run is where the magic happens. Training Testing or Validation mode is indicated and
     # the coorisponding pattern set is loaded and ran through the network
@@ -592,12 +588,13 @@ if __name__=="__main__":
     #p = PatternSet('data/optdigits/optdigits-orig.json')   # 32x32
     #p = PatternSet('data/letter/letter-recognition.json')  # 1x16 # Try 1 center per attribute, and allow outputs to combine them
     #p = PatternSet('data/pendigits/pendigits.json')        # 1x16 # same as above
-    p = PatternSet('data/semeion/semeion.json')            # 16x16 # Training set is very limited
+    #p = PatternSet('data/semeion/semeion.json')            # 16x16 # Training set is very limited
+    p = PatternSet('data/semeion/semeionTT.json')            # 16x16 # Training set is very limited
     #p = PatternSet('data/optdigits/optdigits.json')        # 8x8
     #for e in range(1, 20):
     n = Net(p)
-    n.run(PatternType.Train, 0, 1)
-    n.run(PatternType.Test, 1, 1593)
+    #n.run(PatternType.Train, 0, 1000)
+    n.run(PatternType.Test, 0, 293)
 
     p.printConfusionMatrix()
     print("Done")

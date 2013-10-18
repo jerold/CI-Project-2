@@ -31,7 +31,7 @@ pendigits = {'inFiles':['data/pendigits/pendigits.tra',
              'height':1}
 
 semeion = {'inFiles':['data/semeion/semeion.data'],
-             'outFile':'data/semeion/semeion.json',
+             'outFile':'data/semeion/semeionTT.json',
              'width':16,
              'height':16}
 
@@ -134,7 +134,7 @@ def parseSemeion(lines, w, h):
 def mygrouper(n, iterable):
     "http://stackoverflow.com/questions/1624883/alternative-way-to-split-a-list-into-groups-of-n"
     args = [iter(iterable)] * n
-    return ([e for e in t if e != None] for t in itertools.izip_longest(*args))
+    return ([e for e in t if e != None] for t in itertools.zip_longest(*args))
 
 def buildKMeansCenters(patterns, w, h, k):
     centers = {}
@@ -311,8 +311,8 @@ if __name__=="__main__":
     #parseSet = optdigits
     #parseSet = optdigitsOrig
     #parseSet = letterRecognition
-    parseSet = pendigits
-    #parseSet = semeion
+    #parseSet = pendigits
+    parseSet = semeion
     lines = []
     for fileName in parseSet['inFiles']:
         with open(fileName) as file:
@@ -322,20 +322,20 @@ if __name__=="__main__":
     #patternSet = parseOptdigits(lines, parseSet['width'], parseSet['height'])
     #patternSet = parseOptdigitsOrig(lines, parseSet['width'], parseSet['height'])
     #patternSet = parseLetterRecognition(lines)
-    patternSet = parsePendigits(lines)
-    #patternSet = parseSemeion(lines, parseSet['width'], parseSet['height'])
+    #patternSet = parsePendigits(lines)
+    patternSet = parseSemeion(lines, parseSet['width'], parseSet['height'])
     
     # buildKMeansCenters(patternSet, parseSet['width'], parseSet['height'], 20)
-    centerSigmas = buildCentersAndSigmas(patternSet)
+    centerSigmas = buildCentersAndSigmas(patternSet[:1300])
     centers = centerSigmas['centers']
     sigmas = centerSigmas['sigmas']
     
     print("pats: " + str(len(patternSet)))
     with open(parseSet['outFile'], 'w+') as outfile:
-        data = {'count':len(patternSet),
+        data = {'count':len(patternSet[1300:]),
                 'width':parseSet['width'],
                 'height':parseSet['height'],
-                'patterns':patternSet,
+                'patterns':patternSet[1300:],
                 'centers':centers,
                 'sigmas':sigmas}
         json.dump(data, outfile)
