@@ -82,8 +82,6 @@ def vectorizeMatrix(p):
 
 # values will be a vector, we find k centers among them
 def kMeans(values, k):
-    print("Attribute Values")
-    printPatterns(values)
     centers = random.sample(values, k)
     memberships = []
     movement = 100.0
@@ -118,8 +116,6 @@ def kMeans(values, k):
         for j, v in enumerate(memberships[i]):
             sigmas[i] = sigmas[i] + (values[v]-center)*(values[v]-center)
         sigmas[i] = math.sqrt(1.0/len(memberships[i])*sigmas[i])
-        print("C[" + str(center) + "] S[" + str(sigmas[i]) + "]")
-        printPatterns(memberships[i])
     return {'centers':centers,
             'members':memberships,
             'sigmas':sigmas}
@@ -310,7 +306,6 @@ class Net:
 
     def buildRules(self):
         #sort training patterns by unique targets
-        print(type(self.patternSet.centers))
         keys = list(self.patternSet.centers.keys())
         keys.sort()
         # columns in the patterns represent attributes, build attribute array
@@ -326,17 +321,21 @@ class Net:
         for k, v in enumerate(attributes):
             centerCount = 1
             attributeCenters = kMeans(v, centerCount)
-            print("\n")
-            while 0.0 not in attributeCenters['sigmas']:
+            increaseCount = True
+            while increaseCount:
                 centerCount = centerCount + 1
-                attributeCenters = kMeans(v, centerCount)
-                print("\n")
-            centerCount = centerCount - 1
-            attributeCenters = kMeans(v, centerCount)
-            print("\n")
-            print(attributeCenters)
+                newAttributeCenters = kMeans(v, centerCount)
+                if 0.0 in newAttributeCenters['sigmas']:
+                    increaseCount = False
+                else:
+                    attributeCenters = newAttributeCenters
             centers.append(attributeCenters)
-            #raise("Die Here")
+        # Print Final Rules
+        for a, attributeDetails in enumerate(centers):
+            for c, center in enumerate(attributeDetails['centers']):
+                memString = ', '.join(str(round(x, 3)) for x in attributeDetails['members'][c])
+                print("C:" + str(a) + ":" + str(c) + "[" + str(round(center, 2)) + "{" + str(round(attributeDetails['sigmas'][c], 2)) + "}]  (" + memString + ")")
+            print("\n")
 
         # build the rulesets filling them out with rules corresponding to the centers assembled above
         # link up the product nodes to their corresponding rulesets' rules
@@ -349,20 +348,11 @@ class Net:
                 neuron.center = center
                 neuron.sigma = centers[i]['sigmas'][j]
                 newRuleSet.rules.append(neuron)
-                for m, member in centers[i]['members']:
+                for member in centers[i]['members'][j]:
                     prodLayer.neurons[member].inputVector.append(j)
-            ruleLayer.ruleSets.append(RuleSet(ruleLayer))
-
-            
-                
-        #for each input (only on sets where each input is a parameter (not matrix!)
-            #for each target set of centers TSOC
-                #avg value for TSOC's attribute, make center, calc sigma
-            #for each new centers
-                # keep only unique centers
-            #remaining centers are rules for this attribute
-        #return rules
-        raise("Balls")
+            ruleLayer.ruleSets.append(newRuleSet)
+        print(ruleLayer)
+        print(prodLayer)
 
     # Logging
     def recordWeights(self):
@@ -411,12 +401,13 @@ class Layer:
         return out
 
     # the product layer will request specific rule outputs from the ruleset layer
-    def getOutputs(self, inputVector):
+    def getRuleLayerOutputs(self, inputVector):
         outputs = []
         for rIndex, ruleSet in enumerate(self.ruleSets):
-            if len(ruleSet.rules) != len(inputVector):
-                raise NameError('Input dimension of network does not match that of pattern!')
-            outputs.append(ruleSet.rules[inputVector[rIndex]])
+            print("IV:" + str(inputVector[rIndex]) + " RS:" + str(len(ruleSet.rules)))
+            if inputVector[rIndex] > len(ruleSet.rules):
+                raise NameError('Rule Index in InputVector does not match the number of Rules in this Ruleset!')
+            outputs.append(ruleSet.rules[inputVector[rIndex]].output)
         return outputs
 
     # Adjusting weights is done on the output layer in order to scale the
@@ -464,24 +455,29 @@ class Layer:
                     rule.output = radialBasisFunction(rule.input, rule.sigma)
             self.next.feedForward()
         elif self.layerType == NetLayerType.ProdNorm:
+            # take product
             rollingSum = 0.0
             for neuron in self.neurons:
-                prevOutputs = self.prev.getOutputs(neuron.inputVector)
-                neuron.input = 0.0
-                for i in prevOutputs:
-                    neuron.input = neuron.input*prevOutputs[i]
+                prevOutputs = self.prev.getRuleLayerOutputs(neuron.inputVector)
+                neuron.input = prevOutputs[0]
+                for outputValue in prevOutputs[1:]:
+                    neuron.input = neuron.input*outputValue
                 rollingSum = rollingSum + neuron.input
-            for neuron in self.neurons:
-                neuron.output = neuron.input/rollingSum
+            # Normalize output
+            print("Outputs")
+            if abs(rollingSum) > 0.0:
+                for neuron in self.neurons:
+                    neuron.output = neuron.input/rollingSum
+                    print(round(neuron.output, 3))
             self.next.feedForward()
         elif self.layerType == NetLayerType.Consequent:
             prevOutputs = self.prev.getOutputs()
             for i, neuron in enumerate(self.neurons):
-                sum = 0
+                consequenceSum = 0.0
                 for j, val in enumerate(prevOutputs):
-                    sum += val*self.consequences[i][j]
-                sum += self.consequences[-1]
-                neuron.output = sum
+                    consequenceSum += val*self.consequences[i][j]
+                consequenceSum += self.consequences[-1]
+                neuron.output = consequenceSum
         elif self.layerType == NetLayerType.Summation:
             raise("Balls")
         elif self.layerType == NetLayerType.Output:
@@ -508,9 +504,19 @@ class Layer:
 
     # Output Format
     def __str__(self):
-        out = "  " + NetLayerType.desc(self.layerType) + "["
-        for neuron in self.neurons:
-            out = out + str(neuron)
+        out = "" + NetLayerType.desc(self.layerType) + "[\n"
+        if self.layerType == NetLayerType.Rules:
+            for rs, attribute in enumerate(self.ruleSets):
+                out = out + "  A:" + str(rs) + "["
+                for rule in attribute.rules:
+                    out = out + "(" + str(round(rule.center, 2)) + ":" + str(round(rule.sigma, 2)) + ")"
+                out = out + "]\n"
+        if self.layerType == NetLayerType.ProdNorm:
+            for p, prodNode in enumerate(self.neurons):
+                out = out + "  P:" + str(p) + "["
+                for r, ruleIndex in enumerate(prodNode.inputVector):
+                    out = out + "(" + str(r) + ":" + str(ruleIndex) + ")"
+                out = out + "]\n"
         out = out + "]\n"
         return out
 
