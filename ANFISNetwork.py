@@ -673,6 +673,7 @@ class Layer:
                 consequenceSum += self.consequences[i][-1]
                 neuron.output = prevOutputs[i]*consequenceSum
 
+        # If there is a subsequent layer, feed forward
         if self.next:
             self.next.feedForward()
 
@@ -696,6 +697,7 @@ class Layer:
 
 
 class RuleSet:
+    "RuleSets contain rules which are really just neurons... don't tell anyone though"
     def __init__(self, layer):
         self.layer = layer
         self.rules = []
