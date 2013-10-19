@@ -405,6 +405,13 @@ class PatternSet:
 
 
 class Net:
+    "The Net class contains Layers which in turn contain rulesets (containing rules) or neurons."
+    # The architecture is set up based on the pattern set we pass in
+    # Pattern sets contain all input-output pairs, and centers for each unique target type "0-9" or "A-Z"
+    # The last step in setting up the architecture of the network is to build rulesets for each input attribute
+    # and rules based on the number of functional centers within each attribute
+    # individual rules are then hooked up to the appropreate product layer to construct predicate logic for our targets
+    # buildRules() explains this process in more detail
     def __init__(self, patternSet):
         inputLayer = Layer(NetLayerType.Input, None, patternSet.inputMagnitude())
         ruleLayer = Layer(NetLayerType.Rules, inputLayer, patternSet.inputMagnitude())
@@ -418,10 +425,11 @@ class Net:
         self.absError = 100
         self.buildRules()
 
-    # Run is where the magic happens. Training Testing or Validation mode is indicated and
-    # the coorisponding pattern set is loaded and ran through the network
+    # Run is where the magic happens. Training and Testing mode is indicated and
+    # patterns in the indicated range are ran through the network
     # At the end Error is calculated
     def run(self, mode, startIndex, endIndex):
+        "Patterns wthin the indicated range are fed through the network for training or testing purposes"
         patterns = self.patternSet.patterns
         if len(patterns) < endIndex:
             print(len(patterns))
@@ -432,18 +440,20 @@ class Net:
         print("Mode[" + PatternType.desc(mode) + ":" + str(endIndex - startIndex) + "]...")
         startTime = time.time()
         for i in range(startIndex, endIndex):
-            #Initialize the input layer with input values from the pattern
-            # Feed those values forward through the remaining layers, linked list style
             if len(vectorizeMatrix(patterns[i]['p'])) != len(self.layers[NetLayerType.Input].neurons):
                 raise NameError('Input vector length does not match neuron count on input layer!')
+
+            #Initialize the input layer with input values from the  current pattern
+            # Feed those values forward through the remaining layers, linked list style
             self.layers[NetLayerType.Input].setInputs(vectorizeMatrix(patterns[i]['p']))
             self.layers[NetLayerType.Input].feedForward()
+
             if mode == PatternType.Train:
-                #For training the final output weights are adjusted to correct for error from target
+                #For training the consequent values are adjusted to correct for error from target
                 self.layers[NetLayerType.Consequent].adjustConsequent(self.patternSet.targetVector(patterns[i]['t']))
             else:
-                #self.patternSet.updateConfusionMatrix(patterns[i]['t'], self.layers[NetLayerType.Consequent].getOutputs())
-                self.patternSet.updateConfusionMatrix(patterns[i]['t'], self.layers[NetLayerType.ProdNorm].getOutputs())
+                self.patternSet.updateConfusionMatrix(patterns[i]['t'], self.layers[NetLayerType.Consequent].getOutputs())
+                #self.patternSet.updateConfusionMatrix(patterns[i]['t'], self.layers[NetLayerType.ProdNorm].getOutputs())
                 # print("\nOutputs")
                 # print("[" + ", ".join(str(int(x+0.2)) for x in self.layers[NetLayerType.ProdNorm].getOutputs()) + "]")
                 # print("Target")
@@ -463,6 +473,7 @@ class Net:
             #         file.write(out + '\n')
             # self.recordWeights()
         endTime = time.time()
+        print("Time [" + str(round(endTime-startTime, 4)) + "sec]")
         # if mode != PatternType.Train:
         #     # Calculate Absolute Error pg.398
         #     self.absError = 1.0/(patCount*len(patterns[0]["outputs"]))*errorSum
@@ -472,23 +483,16 @@ class Net:
         #         with open('errors.txt', 'a') as file:
         #             file.write(str(round(self.absError, 4)) + '\t' + str(endTime-startTime) + '\n')
 
-    # During this process we calculate sigma which is used in the Hidden Layers' RBF function
-    def buildCenters(self):
-        centers = self.patternSet.centers
-        neurons = self.layers[NetLayerType.Hidden].neurons
-        n = 0
-        maxEuclidianDistance = 0.0
-        # print("Centers:")
-        keys = list(centers.keys())
-        keys.sort()
-        for key in keys:
-            neurons[n].center = vectorizeMatrix(centers[key])
-            n = n + 1
-
     def buildRules(self):
+        "Each input represents an attribute, and re construct a unique ruleset for each attribute."
+        # RuleSets consist of several rules, multiple targets may share a single rule within a Ruleset
+        # ie. "1" and "7" may have similar widths, and therefore have a similar center in the width attribute
+        # Each target is a member of one rule within the ruleset, it's membership is measured along a gaussian curve
+
         #sort training patterns by unique targets
         keys = list(self.patternSet.centers.keys())
         keys.sort()
+
         # cells in the patterns represent attributes, build attribute array
         attributes = []
         patterns = vectorizeMatrix(self.patternSet.centers[keys[0]])
@@ -498,7 +502,13 @@ class Net:
             pattern = vectorizeMatrix(self.patternSet.centers[key])
             for i, attribute in enumerate(pattern):
                 attributes[i].append(attribute)
-        # Now we build a center for each attribute
+
+        # Now we build as many centers for each attribute as are needed
+        # ie. We increase k in k-means until a center is picked with a membership of only 1
+        # at which point we pick the previous set of centers for which all memberships are at least 2
+        # Note: it would make since that some centers would have only 1 member (outliers), but this
+        # produces a sigma of 0.0, which does not allow for fuzziness in the rule's application to untrained targets
+        # so we decided a close enough membership was better than none, and that consequent layer updates should account for this after training
         centers = []
         for k, v in enumerate(attributes):
             centerCount = 1
@@ -512,15 +522,16 @@ class Net:
                 else:
                     attributeCenters = newAttributeCenters
             centers.append(attributeCenters)
-        # Print Final Rules
-##        for a, attributeDetails in enumerate(centers):
-##            print("\n")
-##            for c, center in enumerate(attributeDetails['centers']):
-##                memString = ', '.join(str(round(x, 3)) for x in attributeDetails['members'][c])
-##                print("C:" + str(a) + ":" + str(c) + "[" + str(round(center, 2)) + "{" + str(round(attributeDetails['sigmas'][c], 2)) + "}]  (" + memString + ")")
+
+        #Print Final Rules
+        for a, attributeDetails in enumerate(centers):
+            for c, center in enumerate(attributeDetails['centers']):
+                memString = ', '.join(str(round(x, 3)) for x in attributeDetails['members'][c])
+                print("\nC:" + str(a) + ":" + str(c) + "[" + str(round(center, 2)) + "{" + str(round(attributeDetails['sigmas'][c], 2)) + "}]  (" + memString + ")")
 
         # build the rulesets filling them out with rules corresponding to the centers assembled above
-        # link up the product nodes to their corresponding rulesets' rules
+        # form predicate logic by linking up the product nodes to their corresponding rulesets' rules
+        # ie. "0" product linked to its coorisponding rule within ruleset 1, 2, ..., n
         ruleLayer = self.layers[NetLayerType.Rules]
         prodLayer = self.layers[NetLayerType.ProdNorm]
         for i, attribute in enumerate(attributes):
@@ -555,6 +566,12 @@ class Net:
 
 #Layers are of types Input Hidden and Output.  
 class Layer:
+    "Layers link together from 1st to last, and can feedforward in linked list style"
+    # Some layers contain just an array of neurons, some contain an array of rulesets in turn containing arrays of rules
+    # some contain an array of neurons and a consequence matrix
+    # Ultimately, the layer surves the purpose of passing input to output within itself
+    # and facilitates the passing of outputs from itself to another layer
+    # Specific implementations of the above functionality depends upon the layer's type
     def __init__(self, layerType, prevLayer, neuronCount):
         self.layerType = layerType
         self.prev = prevLayer
@@ -582,6 +599,7 @@ class Layer:
         return out
 
     # the product layer will request specific rule outputs from the ruleset layer
+    # ie. a specific rule's output from within each of the layer's multiple ruleset
     def getRuleLayerOutputs(self, inputVector):
         outputs = []
         for rIndex, ruleSet in enumerate(self.ruleSets):
@@ -591,6 +609,8 @@ class Layer:
             outputs.append(ruleSet.rules[inputVector[rIndex]].output)
         return outputs
 
+    # Consequent training facilitates the networks ability to learn how input from the product/norm layer relate
+    # to the target output, in order to produce more accurate output given future product/norm layer inputs
     def adjustConsequent(self, targets):
         if len(targets) != len(self.neurons):
             raise NameError('Output dimension of network does not match that of target!')
@@ -600,15 +620,18 @@ class Layer:
                 self.consequences[i][j] = self.consequences[i][j] + (eta * ((targets[i] - neuron.output)/len(self.consequences[i])))
             # print("C:" + str(i) + "[" + ", ".join(str(x) for x in self.consequences[i]) + "]")
 
-    # Each Layer has a link to the next link in order.  Input values are translated from
+    # Each Layer has a link to the next layer in order.  Input values are translated from
     # input to output in keeping with the Layer's function
     def feedForward(self):
         if self.layerType == NetLayerType.Input:
             # Input Layer feeds all input to output with no work done
             for neuron in self.neurons:
                 neuron.output = neuron.input
-            self.next.feedForward()
         elif self.layerType == NetLayerType.Rules:
+            # Each input goes to a specific ruleset
+            # The input fed to a particular ruleset is fed in turn to all rules within that ruleset
+            # Inputs euclidian distance from the rules centers is passed through
+            # a radial basis function (membership) producing the rule's output
             prevOutputs = self.prev.getOutputs()
             for rsIndex, ruleSet in enumerate(self.ruleSets):
                 for rIndex, rule in enumerate(ruleSet.rules):
@@ -616,9 +639,9 @@ class Layer:
                     rule.input = prevOutputs[rsIndex]
                     rule.input = euclidianDistance(prevOutputs[rsIndex], rule.center);
                     rule.output = radialBasisFunction(rule.input, rule.sigma)
-            self.next.feedForward()
         elif self.layerType == NetLayerType.ProdNorm:
-            # take product
+            # Each product neuron is linked to specific rules within the rulesets of the Rule layer
+            # on rule for each ruleset, the product of these inputs is taken and assigned to the neuron's input
             rollingSum = 0.0
             for neuron in self.neurons:
                 prevOutputs = self.prev.getRuleLayerOutputs(neuron.inputVector)
@@ -626,25 +649,32 @@ class Layer:
                 for outputValue in prevOutputs[1:]:
                     neuron.input = neuron.input*outputValue
                 rollingSum = rollingSum + neuron.input
-            # Normalize output
+            # The rolling sum taken during the product step is used to normalize our inputs
+            # producing this layer's output value
             if abs(rollingSum) > 0.0:
                 for neuron in self.neurons:
                     neuron.output = neuron.input/rollingSum
-            self.next.feedForward()
         elif self.layerType == NetLayerType.Consequent:
+            # Consequent Logic takes the networks original inputs and gains them against the
+            # consequent matrix, this multiplied with the normalized product layer's output is our final output
             prevOutputs = self.prev.getOutputs()
             layer = self.prev
             while True:
                 layer = layer.prev
                 if layer.layerType == NetLayerType.Input:
                     break
-            inputs = layer.getOutputs()
+            netInputs = layer.getOutputs()
+
+            # For each neuron i take Normalized Product Output i * (pi*x + qi*y... + ri)
             for i, neuron in enumerate(self.neurons):
                 consequenceSum = 0.0
-                for j, val in enumerate(inputs):
-                    consequenceSum += val*self.consequences[i][j]
+                for j, inVal in enumerate(netInputs):
+                    consequenceSum += inVal*self.consequences[i][j]
                 consequenceSum += self.consequences[i][-1]
-                neuron.output = consequenceSum
+                neuron.output = prevOutputs[i]*consequenceSum
+
+        if self.next:
+            self.next.feedForward()
 
     # Output Format
     def __str__(self):
