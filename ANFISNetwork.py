@@ -114,10 +114,10 @@ def kMeans(values, k):
                 centers[i] = newCenter
     # Construct Sigma for the rules
     sigmas = []
-    print(values)
+    #print(values)
     for i, center in enumerate(centers):
-        print(center)
-        print(memberships[i])
+        #print(center)
+        #print(memberships[i])
         sigmas.append(0.0)
         for j, v in enumerate(memberships[i]):
             sigmas[i] = sigmas[i] + (values[v]-center)*(values[v]-center)
@@ -211,8 +211,33 @@ class PatternSet:
         keys = list(self.confusionMatrix.keys())
         keys.sort()
         for key in keys:
+            print key
             printPatterns(self.confusionMatrix[key])
+        self.calcPrecisionAndRecall()
 
+    def calcPrecisionAndRecall(self):
+        keys = list(self.confusionMatrix.keys())
+        keys.sort()
+        i = 0
+        precision = []
+        recall = []
+        diagonal = []
+        for key in keys:
+            row = self.confusionMatrix[key]
+            rowSum = 0
+            for j, val in enumerate(row):
+                if i==j:
+                    diagonal.append(val)
+                rowSum += val
+                if len(recall) == j:
+                    recall.append(val)
+                else:
+                    recall[j] = recall[j] + val
+            precision.append(rowSum)
+            i += 1
+        for i, elem in enumerate(diagonal):
+            print(str(keys[i]) + " p:" + str(elem / precision[i]) + " r:" + str(elem/recall[i]))
+        
     def targetVector(self, key):
         return self.targetMatrix[str(key)]
 
@@ -243,9 +268,9 @@ class Net:
         # Clark, I changed the initialization of this matrix, please check hera and around line 483 to see if I did it correctly
         #consequentLayer.consequences = [randomInitialWeight()] * patternSet.inputMagnitude() + [randomInitialWeight()]
         #consequentLayer.consequences = consequentLayer.consequences * len(prodNormLayer.neurons)
-        consequentLayer.consequences = [[randomInitialWeight() for _ in range(len(prodNormLayer.neurons))] for _ in range(patternSet.inputMagnitude() + 1)]
-        print("Consequence:")
-        printPatterns(consequentLayer.consequences)
+        consequentLayer.consequences = [[randomInitialWeight() for _ in range(patternSet.inputMagnitude() + 1)] for _ in range(len(prodNormLayer.neurons))]
+        # print("Consequence:")
+        # printPatterns(consequentLayer.consequences)
 
         #summationLayer = Layer(NetLayerType.Output, consequentLayer, patternSet.outputMagnitude())
         self.layers = [inputLayer, ruleLayer, prodNormLayer, consequentLayer]
@@ -275,7 +300,7 @@ class Net:
             self.layers[NetLayerType.Input].feedForward()
             if mode == PatternType.Train:
                 #For training the final output weights are adjusted to correct for error from target
-                self.layers[NetLayerType.Consequent].adjustWeights(self.patternSet.targetVector(patterns[i]['t']))
+                self.layers[NetLayerType.Consequent].adjustConsequent(self.patternSet.targetVector(patterns[i]['t']))
             else:
                 #self.patternSet.updateConfusionMatrix(patterns[i]['t'], self.layers[NetLayerType.Consequent].getOutputs())
                 self.patternSet.updateConfusionMatrix(patterns[i]['t'], self.layers[NetLayerType.ProdNorm].getOutputs())
@@ -286,10 +311,10 @@ class Net:
             # Each pattern produces an error which is added to the total error for the set
             # and used later in the Absolute Error Calculation
 
-            print("\nOutputs")
-            print("[" + ", ".join(str(int(x+0.2)) for x in self.layers[NetLayerType.ProdNorm].getOutputs()) + "]")
-            print("Target")
-            print(self.patternSet.targetVector(patterns[i]['t']))
+##            print("\nOutputs")
+##            print("[" + ", ".join(str(int(x+0.2)) for x in self.layers[NetLayerType.ProdNorm].getOutputs()) + "]")
+##            print("Target")
+##            print(self.patternSet.targetVector(patterns[i]['t']))
 
             outError = outputError(self.layers[NetLayerType.Consequent].getOutputs(), self.patternSet.targetVector(patterns[i]['t']))
             errorSum = errorSum + outError
@@ -355,11 +380,11 @@ class Net:
                     attributeCenters = newAttributeCenters
             centers.append(attributeCenters)
         # Print Final Rules
-        for a, attributeDetails in enumerate(centers):
-            print("\n")
-            for c, center in enumerate(attributeDetails['centers']):
-                memString = ', '.join(str(round(x, 3)) for x in attributeDetails['members'][c])
-                print("C:" + str(a) + ":" + str(c) + "[" + str(round(center, 2)) + "{" + str(round(attributeDetails['sigmas'][c], 2)) + "}]  (" + memString + ")")
+##        for a, attributeDetails in enumerate(centers):
+##            print("\n")
+##            for c, center in enumerate(attributeDetails['centers']):
+##                memString = ', '.join(str(round(x, 3)) for x in attributeDetails['members'][c])
+##                print("C:" + str(a) + ":" + str(c) + "[" + str(round(center, 2)) + "{" + str(round(attributeDetails['sigmas'][c], 2)) + "}]  (" + memString + ")")
 
         # build the rulesets filling them out with rules corresponding to the centers assembled above
         # link up the product nodes to their corresponding rulesets' rules
@@ -455,11 +480,8 @@ class Layer:
             raise NameError('Output dimension of network does not match that of target!')
         for i, neuron in enumerate(self.neurons):
             error = abs(targets[i] - neuron.output)
-            while error > 0.05:
-                for j, consequent in enumerate(self.consequences):
-                    self.consequences[j] = consequent + (eta * (targets[i] - neuron.output) * consequent)
-                self.feedForward()
-                error = abs(targets[i] - neuron.output)
+            for j in range(len(self.consequent[i])):
+                self.consequences[i][j] = self.consequent[i][j] + (eta * ((targets[i] - neuron.output)/len(self.consequent[i])))
 
     # Each Layer has a link to the next link in order.  Input values are translated from
     # input to output in keeping with the Layer's function
@@ -492,14 +514,21 @@ class Layer:
                 for neuron in self.neurons:
                     neuron.output = neuron.input/rollingSum
             self.next.feedForward()
-        # elif self.layerType == NetLayerType.Consequent:
-            # prevOutputs = self.prev.getOutputs()
-            # for i, neuron in enumerate(self.neurons):
-            #     consequenceSum = 0.0
-            #     for j, val in enumerate(prevOutputs):
-            #         consequenceSum = consequenceSum + val*self.consequences[i][j]
-            #     consequenceSum = consequenceSum + self.consequences[i][len(self.consequences[i])-1]
-            #     neuron.output = consequenceSum
+        elif self.layerType == NetLayerType.Consequent:
+            prevOutputs = self.prev.getOutputs()
+            layer = self.prev
+            while True:
+                layer = layer.prev
+                if layer.layerType == NetLayerType.Input:
+                    break
+            inputs = layer.getOutputs()
+            for i, neuron in enumerate(self.neurons):
+                consequenceSum = 0.0
+                for j, val in enumerate(inputs):
+                    consequenceSum += val*self.consequences[i][j]
+                consequenceSum += self.consequences[i][-1]
+                neuron.output = consequenceSum
+                
         elif self.layerType == NetLayerType.Summation:
             raise("Balls")
         elif self.layerType == NetLayerType.Output:
@@ -589,11 +618,12 @@ if __name__=="__main__":
     #p = PatternSet('data/letter/letter-recognition.json')  # 1x16 # Try 1 center per attribute, and allow outputs to combine them
     #p = PatternSet('data/pendigits/pendigits.json')        # 1x16 # same as above
     #p = PatternSet('data/semeion/semeion.json')            # 16x16 # Training set is very limited
-    p = PatternSet('data/semeion/semeionTT.json')            # 16x16 # Training set is very limited
+    p = PatternSet('data/semeion/semeionTT.json')           # 16x16 # Training set is very limited
     #p = PatternSet('data/optdigits/optdigits.json')        # 8x8
     #for e in range(1, 20):
+    
     n = Net(p)
-    #n.run(PatternType.Train, 0, 1000)
+    n.run(PatternType.Train, 0, 1000)
     n.run(PatternType.Test, 0, 293)
 
     p.printConfusionMatrix()

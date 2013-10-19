@@ -129,12 +129,13 @@ def parseSemeion(lines, w, h):
             patSet.append({'p':pattern, 't':patternTarget})
         else:
             var = input("Bad line [" + line + "]")
+    random.shuffle(patSet)
     return patSet
 
 def mygrouper(n, iterable):
     "http://stackoverflow.com/questions/1624883/alternative-way-to-split-a-list-into-groups-of-n"
     args = [iter(iterable)] * n
-    return ([e for e in t if e != None] for t in itertools.zip_longest(*args))
+    return ([e for e in t if e != None] for t in itertools.izip_longest(*args))
 
 def buildKMeansCenters(patterns, w, h, k):
     centers = {}
@@ -326,16 +327,16 @@ if __name__=="__main__":
     patternSet = parseSemeion(lines, parseSet['width'], parseSet['height'])
     
     # buildKMeansCenters(patternSet, parseSet['width'], parseSet['height'], 20)
-    centerSigmas = buildCentersAndSigmas(patternSet[:1300])
+    centerSigmas = buildCentersAndSigmas(patternSet[:800])
     centers = centerSigmas['centers']
     sigmas = centerSigmas['sigmas']
     
     print("pats: " + str(len(patternSet)))
     with open(parseSet['outFile'], 'w+') as outfile:
-        data = {'count':len(patternSet[1300:]),
+        data = {'count':len(patternSet[800:]),
                 'width':parseSet['width'],
                 'height':parseSet['height'],
-                'patterns':patternSet[1300:],
+                'patterns':patternSet[800:],
                 'centers':centers,
                 'sigmas':sigmas}
         json.dump(data, outfile)
