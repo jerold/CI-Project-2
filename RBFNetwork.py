@@ -1,17 +1,14 @@
 #!/usr/bin/python
 # RBF Network
 
-import json
-import random
 import sys
+import random
 import math
 import time
+import patternSet
+from patternSet import PatternSet
 
 eta = 1.00
-
-logWeights = False
-logResults = False
-logError = True
 
 # Enum for Pattern Type ( Also used as Net running Mode)
 class PatternType:
@@ -96,85 +93,6 @@ def printPatterns(pattern):
             printPatterns(pat)
     else:
         print(', '.join(str(round(x, 3)) for x in pattern))
-
-# A Pattern set contains sets of 3 types of patterns
-# and can be used to retrieve only those patterns of a certain type
-class PatternSet:
-    # patterns = []
-    # inputMagX = 1
-    # inputMagY = 1
-    # outputMag = 0
-    # centers = {}
-    # confusionMatrix = {}
-    # targetMatrix = {}
-
-    # Reads patterns in from a file, and puts them in their coorisponding set
-    def __init__(self, fileName):
-        with open(fileName) as jsonData:
-            data = json.load(jsonData)
-            
-        # Assign Patterns and Randomize order
-        self.patterns = data['patterns']
-        self.inputMagX = len(self.patterns[0]['p'])
-        self.inputMagY = 1
-        if isinstance(self.patterns[0]['p'][0], list):
-            self.inputMagX = len(self.patterns[0]['p'][0])
-            self.inputMagY = len(self.patterns[0]['p'])
-
-        random.shuffle(self.patterns)
-        print(str(len(self.patterns)) + " Patterns Available (" + str(self.inputMagY) + "x" + str(self.inputMagX) + ")")
-
-        # Assign Centers
-        self.centers = data['centers']
-
-        # Architecture has 1 output node for each digit / letter
-        # Currently this also corrisponds to each center
-        # Assemble our target and confusion matrix
-        keys = list(self.centers.keys())
-        keys.sort()
-        print("Centers: [" + ', '.join(str(k).split('.')[0] for k in keys) + "]")
-        self.confusionMatrix = {}
-        self.targetMatrix = {}
-        index = 0
-        for key in keys:
-            self.confusionMatrix[key] = [0.0] * len(keys)
-            self.targetMatrix[key] = [0] * len(keys)
-            self.targetMatrix[key][index] = 1
-            index = index + 1
-        self.outputMag = len(keys)
-
-        # Sigma = (max euclidian distance between all centers) / number of centers
-        maxEuclidianDistance = 0.0
-        for k1 in keys:
-            for k2 in keys:
-                maxEuclidianDistance = max(euclidianDistance(vectorizeMatrix(self.centers[k1]), vectorizeMatrix(self.centers[k2])), maxEuclidianDistance)
-        Neuron.sigma = maxEuclidianDistance/math.sqrt(len(keys))
-        print("Sigma: " + str(Neuron.sigma))
-
-    def printConfusionMatrix(self):
-        keys = list(self.confusionMatrix.keys())
-        keys.sort()
-        for key in keys:
-            printPatterns(self.confusionMatrix[key])
-
-    def targetVector(self, key):
-        return self.targetMatrix[str(key)]
-
-    def updateConfusionMatrix(self, key, outputs):
-        maxIndex = 0
-        maxValue = 0
-        for i in range(len(outputs)):
-            if maxValue < outputs[i]:
-                maxIndex = i
-                maxValue = outputs[i]
-        # print("Key: " + str(key) + " winner:" + str(maxIndex))
-        self.confusionMatrix[str(key)][maxIndex] = self.confusionMatrix[str(key)][maxIndex] + 1
-
-    def inputMagnitude(self):
-        return self.inputMagX * self.inputMagY
-
-    def outputMagnitude(self):
-        return self.outputMag
 
 
 class Net:
@@ -376,21 +294,16 @@ class Neuron:
 
 #Main
 if __name__=="__main__":
-    #p = PatternSet('data/optdigits/optdigits-orig.json')   # 32x32
-    #p = PatternSet('data/letter/letter-recognition.json')  # 1x16 # Try 1 center per attribute, and allow outputs to combine them
-    #p = PatternSet('data/pendigits/pendigits.json')        # 1x16 # same as above
-    p = PatternSet('data/semeion/semeion.json')            # 16x16 # Training set is very limited
-    #p = PatternSet('data/optdigits/optdigits.json')        # 8x8
-    #for e in range(1, 20):
+    trainPercentage = 0.8
+    #p = PatternSet('data/optdigits/optdigits-orig.json', trainPercentage)   # 32x32
+    #p = PatternSet('data/letter/letter-recognition.json', trainPercentage)  # 1x16 # Try 1 center per attribute, and allow outputs to combine them
+    #p = PatternSet('data/pendigits/pendigits.json', trainPercentage)        # 1x16 # same as above
+    #p = PatternSet('data/semeion/semeion.json', trainPercentage)           # 1593 @ 16x16 # Training set is very limited
+    p = PatternSet('data/optdigits/optdigits.json', trainPercentage)        # 8x8
+    
     n = Net(p)
-    n.run(PatternType.Train, 0, 1400)
-    n.run(PatternType.Train, 0, 1400)
-    n.run(PatternType.Train, 0, 1400)
-    n.run(PatternType.Train, 0, 1400)
-    n.run(PatternType.Train, 0, 1400)
-    n.run(PatternType.Train, 0, 1400)
-    n.run(PatternType.Train, 0, 1400)
-    n.run(PatternType.Test, 1401, 1593)
+    n.run(PatternType.Train, 0, int(p.count*trainPercentage))
+    n.run(PatternType.Test, int(p.count*trainPercentage), p.count)
 
     p.printConfusionMatrix()
     print("Done")
