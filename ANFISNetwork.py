@@ -54,8 +54,13 @@ def radialBasisFunction(norm, sigma):
 def euclidianDistance(p, q):
     sumOfSquares = 0.0
     if isinstance(p, list):
-        for i in range(len(p)):
-            sumOfSquares = sumOfSquares + ((p[i]-q[i])*(p[i]-q[i]))
+        if isinstance(p[0], list):
+            for i in range(len(p)):
+                for j in range(len(p[i])):
+                    sumOfSquares = sumOfSquares + ((p[i][j]-q[i][j])*(p[i][j]-q[i][j]))
+        else:
+            for i in range(len(p)):
+                sumOfSquares = sumOfSquares + ((p[i]-q[i])*(p[i]-q[i]))
     else:
         sumOfSquares = sumOfSquares + ((p-q)*(p-q))
     return math.sqrt(sumOfSquares)
@@ -116,8 +121,6 @@ def kMeans(values, k):
     sigmas = []
     #print(values)
     for i, center in enumerate(centers):
-        #print(center)
-        #print(memberships[i])
         sigmas.append(0.0)
         for j, v in enumerate(memberships[i]):
             sigmas[i] = sigmas[i] + (values[v]-center)*(values[v]-center)
@@ -126,6 +129,141 @@ def kMeans(values, k):
     return {'centers':centers,
             'members':memberships,
             'sigmas':sigmas}
+
+
+# Centers are built for each of the targets in two steps
+# First an average is built for each target from each pattern of that target type
+# Next we run k-means on the new centers again all patterns
+# Sigmas are calculated for each element
+def buildCentersAndSigmas(patterns):
+    centersTargets = {}
+    for pattern in patterns:
+        if pattern['t'] not in centersTargets:
+            centersTargets[pattern['t']] = []
+        centersTargets[pattern['t']].append(pattern)
+    centers = {}
+    sigmas = {}
+    print("Found " + str(len(centersTargets)) + " targets.")
+    print("Constructing Centers and Sigmas...")
+    # build center as mean of all trained k patterns, and sigma as standard deviation
+    for k in centersTargets.keys():
+        kPats = centersTargets[k]
+        centers[k] = buildMeanPattern(kPats)
+
+    # print("Centers Post Average:")
+    # for k in centersTargets.keys():
+    #     print(k)
+    #     printPatterns(centers[k])
+
+    # soften centers using k-means
+    dist = 100
+    distDelta = 100
+    oldDist = 0
+    while dist > 1 and abs(distDelta) > 0.01:
+        tempCenters = adjustCenters(patterns, centers)
+        dist = 0
+        for k in centersTargets.keys():
+            dist = dist + euclidianDistance(centers[k], tempCenters[k])
+        centers = tempCenters
+        distDelta = dist - oldDist
+        oldDist = dist
+        print("dist:" + str(round(dist, 4)) + ", delta:" + str(round(distDelta, 4)))
+
+    # Build Sigmas for each space
+    # print("Sigma:")
+    # for k in centersTargets.keys():
+    #     sigmas[k] = buildSigmaPattern(centers[k], kPats)
+    #     printPatterns(sigmas[k])
+
+    # print("Centers Post K-means:")
+    # for k in centersTargets.keys():
+    #     print(k)
+    #     printPatterns(centers[k])
+
+    return {'centers':centers, 'sigmas':sigmas}
+
+
+def buildMeanPattern(patterns):
+    h = 0
+    w = len(patterns[0]['p'])
+    if isinstance(patterns[0]['p'][0], list):
+        h = len(patterns[0]['p'])
+        w = len(patterns[0]['p'][0])
+    mPat = emptyPattern(w, h)
+    for pat in patterns:
+        if h > 1:
+            for i in range(h):
+                for j in range(w):
+                    mPat[i][j] = mPat[i][j] + pat['p'][i][j]
+        else:
+            for j in range(w):
+                mPat[j] = mPat[j] + pat['p'][j]
+    if h > 1:
+        for i in range(h):
+            for j in range(w):
+                mPat[i][j] = mPat[i][j] / len(patterns)
+    else:
+        for j in range(w):
+            mPat[j] = mPat[j] / len(patterns)
+    return mPat
+
+
+def buildSigmaPattern(meanPat, patterns):
+    h = 0
+    w = len(patterns[0]['p'])
+    if isinstance(patterns[0]['p'][0], list):
+        h = len(patterns[0]['p'])
+        w = len(patterns[0]['p'][0])
+    sPat = emptyPattern(w, h)
+    # Sum over all square of distance from means
+    if h > 1:
+        for i in range(h):
+            for j in range(w):
+                for pat in patterns:
+                    sPat[i][j] = sPat[i][j] + (pat['p'][i][j] - meanPat[i][j])*(pat['p'][i][j] - meanPat[i][j])
+                sPat[i][j] = math.sqrt(1.0/len(patterns)*sPat[i][j])
+    else:
+        for j in range(w):
+            for pat in patterns:
+                sPat[j] = sPat[j] + (pat['p'][j] - meanPat[j])*(pat['p'][j] - meanPat[j])
+            sPat[j] = math.sqrt(1.0/len(patterns)*sPat[j])
+    return sPat
+
+
+def adjustCenters(patterns, centers):
+    groups = {}
+    for k in centers.keys():
+        groups[k] = []
+    for pattern in patterns:
+        bestDist = 99999
+        bestKey = ''
+        for key in centers.keys():
+            center = centers[key]
+            dist = euclidianDistance(pattern['p'], center)
+            if dist < bestDist:
+                bestDist = dist
+                bestKey = key
+        groups[bestKey].append(pattern)
+    newCenters = {}
+    for k in centers.keys():
+        if len(groups[k]) > 0:
+            newCenters[k] = buildMeanPattern(groups[k])
+        else:
+            newCenters[k] = centers[k]
+    return newCenters
+
+
+def emptyPattern(w, h):
+    pat = []
+    if h > 1:
+        for i in range(h):
+            pat.append([])
+            for j in range(w):
+                pat[i].append(0.0)
+    else:
+        for j in range(w):
+            pat.append(0.0)
+    return pat
             
 
 # Time saver right here
@@ -154,21 +292,14 @@ def printPatterns(pattern):
 # A Pattern set contains sets of 3 types of patterns
 # and can be used to retrieve only those patterns of a certain type
 class PatternSet:
-    # patterns = []
-    # inputMagX = 1
-    # inputMagY = 1
-    # outputMag = 0
-    # centers = {}
-    # confusionMatrix = {}
-    # targetMatrix = {}
-
     # Reads patterns in from a file, and puts them in their coorisponding set
-    def __init__(self, fileName):
+    def __init__(self, fileName, percentTraining):
         with open(fileName) as jsonData:
             data = json.load(jsonData)
             
         # Assign Patterns and Randomize order
         self.patterns = data['patterns']
+        self.count = data['count']
         self.inputMagX = len(self.patterns[0]['p'])
         self.inputMagY = 1
         if isinstance(self.patterns[0]['p'][0], list):
@@ -178,12 +309,12 @@ class PatternSet:
         random.shuffle(self.patterns)
         print(str(len(self.patterns)) + " Patterns Available (" + str(self.inputMagY) + "x" + str(self.inputMagX) + ")")
 
-        # Assign Centers
-        self.centers = data['centers']
-        self.sigmas = data['sigmas']
+        # Construct Centers but base them only off the cases to be trained with
+        centersAndSigmas = buildCentersAndSigmas(self.patterns[:int(data['count']*percentTraining)])
+        self.centers = centersAndSigmas['centers']
+        self.sigmas = centersAndSigmas['sigmas']
 
         # Architecture has 1 output node for each digit / letter
-        # Currently this also corrisponds to each center
         # Assemble our target and confusion matrix
         keys = list(self.centers.keys())
         keys.sort()
@@ -191,6 +322,7 @@ class PatternSet:
         self.confusionMatrix = {}
         self.targetMatrix = {}
         index = 0
+
         # Initialize Confusion Matrix and Target Matrix
         for key in keys:
             self.confusionMatrix[key] = [0.0] * len(keys)
@@ -199,21 +331,35 @@ class PatternSet:
             index = index + 1
         self.outputMag = len(keys)
 
-        # Sigma = (max euclidian distance between all centers) / number of centers
-        maxEuclidianDistance = 0.0
-        for k1 in keys:
-            for k2 in keys:
-                maxEuclidianDistance = max(euclidianDistance(vectorizeMatrix(self.centers[k1]), vectorizeMatrix(self.centers[k2])), maxEuclidianDistance)
-        Neuron.sigma = maxEuclidianDistance/math.sqrt(len(keys))
-        print("Sigma: " + str(Neuron.sigma))
-
     def printConfusionMatrix(self):
         keys = list(self.confusionMatrix.keys())
         keys.sort()
+        print("\nConfusion Matrix")
         for key in keys:
-            print key
             printPatterns(self.confusionMatrix[key])
+        print("\nKey, Precision, Recall")
+        #for key in keys:
+            #print(str(key) + ", " + str(round(self.calcPrecision(key), 3)) + ", " + str(round(self.calcRecall(key), 3)))
         self.calcPrecisionAndRecall()
+
+    def calcPrecision(self, k):
+        tp = self.confusionMatrix[k][k]
+        fpSum = sum(self.confusionMatrix[k])
+        if fpSum == 0.0:
+            return fpSum
+        return tp/fpSum
+
+    def calcRecall(self, k):
+        tp = self.confusionMatrix[k][k]
+        keys = list(self.confusionMatrix.keys())
+        keys.sort()
+        i = 0
+        tnSum = 0.0
+        for key in keys:
+            tnSum = tnSum + self.confusionMatrix[key][k]
+        if tnSum == 0.0:
+            return tnSum
+        return tp/tnSum
 
     def calcPrecisionAndRecall(self):
         keys = list(self.confusionMatrix.keys())
@@ -236,10 +382,11 @@ class PatternSet:
             precision.append(rowSum)
             i += 1
         for i, elem in enumerate(diagonal):
-            print(str(keys[i]) + " p:" + str(elem / precision[i]) + " r:" + str(elem/recall[i]))
+            if abs(precision[i]) > 0.0 and abs(recall[i]) > 0.0:
+                print(str(keys[i]) + ", " + str(elem / precision[i]) + ", " + str(elem/recall[i]))
         
     def targetVector(self, key):
-        return self.targetMatrix[str(key)]
+        return self.targetMatrix[key]
 
     def updateConfusionMatrix(self, key, outputs):
         maxIndex = 0
@@ -248,8 +395,7 @@ class PatternSet:
             if maxValue < outputs[i]:
                 maxIndex = i
                 maxValue = outputs[i]
-        # print("Key: " + str(key) + " winner:" + str(maxIndex))
-        self.confusionMatrix[str(key)][maxIndex] = self.confusionMatrix[str(key)][maxIndex] + 1
+        self.confusionMatrix[key][maxIndex] = self.confusionMatrix[key][maxIndex] + 1
 
     def inputMagnitude(self):
         return self.inputMagX * self.inputMagY
@@ -265,14 +411,8 @@ class Net:
         prodNormLayer = Layer(NetLayerType.ProdNorm, ruleLayer, patternSet.outputMagnitude())
         consequentLayer = Layer(NetLayerType.Consequent, prodNormLayer, patternSet.outputMagnitude())
 
-        # Clark, I changed the initialization of this matrix, please check hera and around line 483 to see if I did it correctly
-        #consequentLayer.consequences = [randomInitialWeight()] * patternSet.inputMagnitude() + [randomInitialWeight()]
-        #consequentLayer.consequences = consequentLayer.consequences * len(prodNormLayer.neurons)
         consequentLayer.consequences = [[randomInitialWeight() for _ in range(patternSet.inputMagnitude() + 1)] for _ in range(len(prodNormLayer.neurons))]
-        # print("Consequence:")
-        # printPatterns(consequentLayer.consequences)
 
-        #summationLayer = Layer(NetLayerType.Output, consequentLayer, patternSet.outputMagnitude())
         self.layers = [inputLayer, ruleLayer, prodNormLayer, consequentLayer]
         self.patternSet = patternSet
         self.absError = 100
@@ -289,7 +429,7 @@ class Net:
             raise NameError('Yo dawg, where you think I is gunna get that many patterns?')
         eta = 1.0
         errorSum = 0.0
-        print("Mode[" + PatternType.desc(mode) + ":" + str(endIndex - startIndex) + "]")
+        print("Mode[" + PatternType.desc(mode) + ":" + str(endIndex - startIndex) + "]...")
         startTime = time.time()
         for i in range(startIndex, endIndex):
             #Initialize the input layer with input values from the pattern
@@ -304,17 +444,10 @@ class Net:
             else:
                 #self.patternSet.updateConfusionMatrix(patterns[i]['t'], self.layers[NetLayerType.Consequent].getOutputs())
                 self.patternSet.updateConfusionMatrix(patterns[i]['t'], self.layers[NetLayerType.ProdNorm].getOutputs())
-                # print("Output:")
-                # printPatterns(self.layers[NetLayerType.Output].getOutputs())
-                # print("Target:")
-                # printPatterns(self.patternSet.targetVector(patterns[i]['t']))
-            # Each pattern produces an error which is added to the total error for the set
-            # and used later in the Absolute Error Calculation
-
-##            print("\nOutputs")
-##            print("[" + ", ".join(str(int(x+0.2)) for x in self.layers[NetLayerType.ProdNorm].getOutputs()) + "]")
-##            print("Target")
-##            print(self.patternSet.targetVector(patterns[i]['t']))
+                # print("\nOutputs")
+                # print("[" + ", ".join(str(int(x+0.2)) for x in self.layers[NetLayerType.ProdNorm].getOutputs()) + "]")
+                # print("Target")
+                # print(self.patternSet.targetVector(patterns[i]['t']))
 
             outError = outputError(self.layers[NetLayerType.Consequent].getOutputs(), self.patternSet.targetVector(patterns[i]['t']))
             errorSum = errorSum + outError
@@ -400,8 +533,6 @@ class Net:
                 for member in centers[i]['members'][j]:
                     prodLayer.neurons[member].inputVector.append(j)
             ruleLayer.ruleSets.append(newRuleSet)
-        print(ruleLayer)
-        print(prodLayer)
 
     # Logging
     def recordWeights(self):
@@ -431,7 +562,8 @@ class Layer:
             prevLayer.next = self
         self.next = None
         self.neurons = []
-        self.ruleSets =[]
+        self.ruleSets = []
+        self.consequences = []
         for n in range(neuronCount):
             self.neurons.append(Neuron(self))
 
@@ -459,29 +591,14 @@ class Layer:
             outputs.append(ruleSet.rules[inputVector[rIndex]].output)
         return outputs
 
-    # Adjusting weights is done on the output layer in order to scale the
-    # output of a neuron's RBF function.
-    def adjustWeights(self, targets):
-        if len(targets) != len(self.neurons):
-            raise NameError('Output dimension of network does not match that of target!')
-        # DeltaWkj = (learningRate)sum(TARGETkp - OUTPUTkp)Yjp
-        prevOutputs = self.prev.getOutputs()
-        # print("O:" + str(round(self.neurons[0].output, 2)) + "  T:" + str(round(targets[0], 2)))
-        for k in range(len(self.neurons)):
-            neuron = self.neurons[k]
-            for j in range(len(prevOutputs)):
-                neuron.weightDeltas[j] = eta * (targets[k] - neuron.output) * prevOutputs[j]
-                neuron.weights[j] = neuron.weights[j] + neuron.weightDeltas[j]
-                if neuron.weights[j] > 9999999:
-                    raise NameError('Divergent Weights!')
-
     def adjustConsequent(self, targets):
         if len(targets) != len(self.neurons):
             raise NameError('Output dimension of network does not match that of target!')
         for i, neuron in enumerate(self.neurons):
             error = abs(targets[i] - neuron.output)
-            for j in range(len(self.consequent[i])):
-                self.consequences[i][j] = self.consequent[i][j] + (eta * ((targets[i] - neuron.output)/len(self.consequent[i])))
+            for j in range(len(self.consequences[i])):
+                self.consequences[i][j] = self.consequences[i][j] + (eta * ((targets[i] - neuron.output)/len(self.consequences[i])))
+            # print("C:" + str(i) + "[" + ", ".join(str(x) for x in self.consequences[i]) + "]")
 
     # Each Layer has a link to the next link in order.  Input values are translated from
     # input to output in keeping with the Layer's function
@@ -528,30 +645,6 @@ class Layer:
                     consequenceSum += val*self.consequences[i][j]
                 consequenceSum += self.consequences[i][-1]
                 neuron.output = consequenceSum
-                
-        elif self.layerType == NetLayerType.Summation:
-            raise("Balls")
-        elif self.layerType == NetLayerType.Output:
-            raise("Balls")
-
-
-            
-        # elif self.layerType == NetLayerType.Hidden:
-        #     # RBF on the Euclidian Norm of input to center
-        #     for neuron in self.neurons:
-        #         prevOutputs = self.prev.getOutputs()
-        #         if len(neuron.center) != len(prevOutputs):
-        #             raise NameError('Center dimension does not match that of previous Layer outputs!')
-        #         neuron.input = euclidianDistance(prevOutputs, neuron.center);
-        #         neuron.output = radialBasisFunction(neuron.input, Neuron.sigma)
-        #     self.next.feedForward()
-        # elif self.layerType == NetLayerType.Output:
-        #     # Linear Combination of Hidden layer outputs and associated weights
-        #     for neuron in self.neurons:
-        #         prevOutputs = self.prev.getOutputs()
-        #         if len(neuron.weights) != len(prevOutputs):
-        #             raise NameError('Weights dimension does not match that of previous Layer outputs!')
-        #         neuron.output = linearCombination(prevOutputs, neuron.weights)
 
     # Output Format
     def __str__(self):
@@ -614,17 +707,17 @@ class Neuron:
 
 #Main
 if __name__=="__main__":
-    #p = PatternSet('data/optdigits/optdigits-orig.json')   # 32x32
-    #p = PatternSet('data/letter/letter-recognition.json')  # 1x16 # Try 1 center per attribute, and allow outputs to combine them
-    #p = PatternSet('data/pendigits/pendigits.json')        # 1x16 # same as above
-    #p = PatternSet('data/semeion/semeion.json')            # 16x16 # Training set is very limited
-    p = PatternSet('data/semeion/semeionTT.json')           # 16x16 # Training set is very limited
-    #p = PatternSet('data/optdigits/optdigits.json')        # 8x8
-    #for e in range(1, 20):
+    trainPercentage = 0.8
+    #p = PatternSet('data/optdigits/optdigits-orig.json', trainPercentage)   # 32x32
+    #p = PatternSet('data/letter/letter-recognition.json', trainPercentage)  # 1x16 # Try 1 center per attribute, and allow outputs to combine them
+    p = PatternSet('data/pendigits/pendigits.json', trainPercentage)        # 1x16 # same as above
+    #p = PatternSet('data/semeion/semeion.json', trainPercentage)            # 16x16 # Training set is very limited
+    #p = PatternSet('data/semeion/semeion.json', trainPercentage)           # 1593 @ 16x16 # Training set is very limited
+    #p = PatternSet('data/optdigits/optdigits.json', trainPercentage)        # 8x8
     
     n = Net(p)
-    n.run(PatternType.Train, 0, 1000)
-    n.run(PatternType.Test, 0, 293)
+    n.run(PatternType.Train, 0, int(p.count*trainPercentage))
+    n.run(PatternType.Test, int(p.count*trainPercentage), p.count)
 
     p.printConfusionMatrix()
     print("Done")
