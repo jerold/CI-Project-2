@@ -521,10 +521,10 @@ class Neuron:
 if __name__=="__main__":
     trainPercentage = 0.8
     #p = PatternSet('data/optdigits/optdigits-orig.json', trainPercentage)   # 32x32
-    p = PatternSet('data/letter/letter-recognition.json', trainPercentage)  # 20000 @ 1x16 # Try 1 center per attribute, and allow outputs to combine them
+    #p = PatternSet('data/letter/letter-recognition.json', trainPercentage)  # 20000 @ 1x16 # Try 1 center per attribute, and allow outputs to combine them
     #p = PatternSet('data/pendigits/pendigits.json', trainPercentage)        # 10992 @ 1x16 # same as above
     #p = PatternSet('data/semeion/semeion.json', trainPercentage)            # 1593 @ 16x16 # Training set is very limited
-    #p = PatternSet('data/optdigits/optdigits.json', trainPercentage)        # 5620 @ 8x8
+    p = PatternSet('data/optdigits/optdigits.json', trainPercentage)        # 5620 @ 8x8
     
     n = Net(p)
     n.run(PatternType.Train, 0, int(p.count*trainPercentage))
