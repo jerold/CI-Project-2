@@ -171,10 +171,10 @@ class Net:
                 #self.layers[NetLayerType.Consequent].adjustConsequent(self.patternSet.targetVector(patterns[i]['t']))
             else:
                 # OPTION 1 --WINNER--
-                self.patternSet.updateConfusionMatrix(patterns[i]['t'], self.layers[NetLayerType.Consequent].getOutputs())
+                #self.patternSet.updateConfusionMatrix(patterns[i]['t'], self.layers[NetLayerType.Consequent].getOutputs())
 
                 # OPTION 2
-                #self.patternSet.updateConfusionMatrix(patterns[i]['t'], self.layers[NetLayerType.ProdNorm].getOutputs())
+                self.patternSet.updateConfusionMatrix(patterns[i]['t'], self.layers[NetLayerType.ProdNorm].getOutputs())
 
                 # print("\nOutputs")
                 # print("[" + ", ".join(str(int(x+0.2)) for x in self.layers[NetLayerType.ProdNorm].getOutputs()) + "]")
@@ -230,33 +230,33 @@ class Net:
         # Note: it would make since that some centers would have only 1 member (outliers), but this
         # produces a sigma of 0.0, which does not allow for fuzziness in the rule's application to untrained targets
         # so we decided a close enough membership was better than none, and that consequent layer updates should account for this after training
-        # centers = []
-        # for k, v in enumerate(attributes):
-        #     centerCount = 1
-        #     attributeCenters = kMeans(v, centerCount)
-        #     increaseCount = True
-        #     while increaseCount:
-        #         centerCount = centerCount + 1
-        #         newAttributeCenters = kMeans(v, centerCount)
-        #         if 0.0 in newAttributeCenters['sigmas']:
-        #             increaseCount = False
-        #         else:
-        #             attributeCenters = newAttributeCenters
-        #     centers.append(attributeCenters)
+        centers = []
+        for k, v in enumerate(attributes):
+            centerCount = 1
+            attributeCenters = kMeans(v, centerCount)
+            increaseCount = True
+            while increaseCount:
+                centerCount = centerCount + 1
+                newAttributeCenters = kMeans(v, centerCount)
+                if 0.0 in newAttributeCenters['sigmas']:
+                    increaseCount = False
+                else:
+                    attributeCenters = newAttributeCenters
+            centers.append(attributeCenters)
 
         # OPTION 2 RULE PER TARGET PER ATTRIBUTE --WINNER--
         # Every RuleSet will have a rule for each target
         # the rule is built from the training pattern set's center and sigma for that target
-        centers = []
-        for k, attribute in enumerate(attributes):
-            attributeCenters = {'centers':[], 'members':[], 'sigmas':[]}
-            # print(k)
-            for j, jthOutputRule in enumerate(attribute):
-                # print(str(j) + " " + str(jthOutputRule) + " " + str(attributesSigmas[k][j]))
-                attributeCenters['centers'].append(jthOutputRule)
-                attributeCenters['members'].append([j])
-                attributeCenters['sigmas'].append(attributesSigmas[k][j])
-            centers.append(attributeCenters)
+        # centers = []
+        # for k, attribute in enumerate(attributes):
+        #     attributeCenters = {'centers':[], 'members':[], 'sigmas':[]}
+        #     # print(k)
+        #     for j, jthOutputRule in enumerate(attribute):
+        #         # print(str(j) + " " + str(jthOutputRule) + " " + str(attributesSigmas[k][j]))
+        #         attributeCenters['centers'].append(jthOutputRule)
+        #         attributeCenters['members'].append([j])
+        #         attributeCenters['sigmas'].append(attributesSigmas[k][j])
+        #     centers.append(attributeCenters)
 
         #Print Final Rules
         # for a, attributeDetails in enumerate(centers):
@@ -521,10 +521,10 @@ class Neuron:
 if __name__=="__main__":
     trainPercentage = 0.8
     #p = PatternSet('data/optdigits/optdigits-orig.json', trainPercentage)   # 32x32
-    #p = PatternSet('data/letter/letter-recognition.json', trainPercentage)  # 1x16 # Try 1 center per attribute, and allow outputs to combine them
-    p = PatternSet('data/pendigits/pendigits.json', trainPercentage)        # 1x16 # same as above
-    #p = PatternSet('data/semeion/semeion.json', trainPercentage)           # 1593 @ 16x16 # Training set is very limited
-    #p = PatternSet('data/optdigits/optdigits.json', trainPercentage)        # 8x8
+    p = PatternSet('data/letter/letter-recognition.json', trainPercentage)  # 20000 @ 1x16 # Try 1 center per attribute, and allow outputs to combine them
+    #p = PatternSet('data/pendigits/pendigits.json', trainPercentage)        # 10992 @ 1x16 # same as above
+    #p = PatternSet('data/semeion/semeion.json', trainPercentage)            # 1593 @ 16x16 # Training set is very limited
+    #p = PatternSet('data/optdigits/optdigits.json', trainPercentage)        # 5620 @ 8x8
     
     n = Net(p)
     n.run(PatternType.Train, 0, int(p.count*trainPercentage))

@@ -1,0 +1,87 @@
+Testing "pendigits" Patterns (1x16)
+	Confusion Matrix updated on ProdNorm Layer:
+		Max: 75.18% Correct
+		With K-means Center softening:
+			10 Rules per RuleSet, 5 run avg:
+				43.208% Correct
+			K-Means RuleSet Generation, 5 run avg:
+				75.18% Correct
+		Without K-Means Center softening:
+			10 Rules per RuleSet, 5 run avg:
+				41.18% Correct
+			K-Means RuleSet Generation, 5 run avg:
+				70.194% Correct
+	Confusion Matrix updated on Consequence Layer:
+		Max: 64.476% Correct
+		With K-means Center softening:
+			10 Rules per RuleSet, 5 run avg:
+				64.476% Correct
+			K-Means RuleSet Generation, 5 run avg:
+				62.202% Correct
+		Without K-Means Center softening:
+			10 Rules per RuleSet, 5 run avg:
+				60.15% Correct
+			K-Means RuleSet Generation, 5 run avg:
+				61.61% Correct
+
+Testing "optdigit" Patters (8x8)
+	Confusion Matrix updated on ProdNorm Layer:
+		Max: 79.412% Correct
+		With K-means Center softening:
+			10 Rules per RuleSet, 5 run avg:
+				19.61% Correct
+			K-Means RuleSet Generation, 5 run avg:
+				71.744% Correct
+		Without K-Means Center softening:
+			10 Rules per RuleSet, 5 run avg:
+				43.77% Correct
+			K-Means RuleSet Generation, 5 run avg:
+				79.412% Correct
+	Confusion Matrix updated on Consequence Layer:
+		Max: 62.028% Correct
+		With K-means Center softening:
+			10 Rules per RuleSet, 5 run avg:
+				15.714% Correct
+			K-Means RuleSet Generation, 5 run avg:
+				61.87% Correct
+		Without K-Means Center softening:
+			10 Rules per RuleSet, 5 run avg:
+				32.876% Correct
+			K-Means RuleSet Generation, 5 run avg:
+				62.028% Correct
+
+Testing "semeion" Patters (16x16)
+	Confusion Matrix updated on ProdNorm Layer:
+		Max: 60.048% Correct
+		With K-means Center softening:
+			10 Rules per RuleSet, 5 run avg:
+				33.418% Correct
+			K-Means RuleSet Generation, 5 run avg:
+				60.048% Correct
+		Without K-Means Center softening:
+			10 Rules per RuleSet, 5 run avg:
+				27.398% Correct
+			K-Means RuleSet Generation, 5 run avg:
+				55.424% Correct
+	Confusion Matrix updated on Consequence Layer:
+		Max: 46.458% Correct
+		With K-means Center softening:
+			10 Rules per RuleSet, 5 run avg:
+				27.648% Correct
+			K-Means RuleSet Generation, 5 run avg:
+				46.458% Correct
+		Without K-Means Center softening:
+			10 Rules per RuleSet, 5 run avg:
+				24.514% Correct
+			K-Means RuleSet Generation, 5 run avg:
+				42.382% Correct
+
+Testing "letter" Patters (1x16)
+	Confusion Matrix updated on ProdNorm Layer:
+		Max: 34.97% Correct
+		With K-means Center softening:
+			K-Means RuleSet Generation, 5 run avg:
+				34.97% Correct
+		Without K-Means Center softening:
+			K-Means RuleSet Generation, 5 run avg:
+				21.55% Correct

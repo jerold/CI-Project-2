@@ -40,18 +40,18 @@ def buildCentersAndSigmas(patterns):
         centers[k] = buildMeanPattern(kPats)
 
     # OPTIONAL k-MEANS CENTER SOFTENING --WINNER--
-    dist = 100
-    distDelta = 100
-    oldDist = 0
-    while dist > 1 and abs(distDelta) > 0.01:
-        tempCenters = adjustCenters(patterns, centers)
-        dist = 0
-        for k in centersTargets.keys():
-            dist = dist + euclidianDistance(centers[k], tempCenters[k])
-        centers = tempCenters
-        distDelta = dist - oldDist
-        oldDist = dist
-        #print("dist:" + str(round(dist, 4)) + ", delta:" + str(round(distDelta, 4)))
+    # dist = 100
+    # distDelta = 100
+    # oldDist = 0
+    # while dist > 1 and abs(distDelta) > 0.01:
+    #     tempCenters = adjustCenters(patterns, centers)
+    #     dist = 0
+    #     for k in centersTargets.keys():
+    #         dist = dist + euclidianDistance(centers[k], tempCenters[k])
+    #     centers = tempCenters
+    #     distDelta = dist - oldDist
+    #     oldDist = dist
+    #     #print("dist:" + str(round(dist, 4)) + ", delta:" + str(round(distDelta, 4)))
 
     # #Build Sigmas for each space
     for k in centersTargets.keys():
